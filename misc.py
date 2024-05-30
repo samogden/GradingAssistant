@@ -1,18 +1,9 @@
 #!env python
 from __future__ import annotations
 
-import base64
-import io
-import itertools
-import json
 import logging
 import os
-import random
 from typing import List
-
-import PIL.Image
-import pymupdf as fitz
-import requests
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

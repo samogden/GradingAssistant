@@ -4,25 +4,18 @@ from __future__ import annotations
 import abc
 import base64
 import io
-import itertools
 import json
 import logging
 import os
 import random
 import threading
-import time
-from pprint import pprint
+import tkinter as tk
+from tkinter import scrolledtext
 from typing import List, Dict
 
 import PIL.Image
 import pymupdf as fitz
-import requests
-
-import tkinter as tk
-from tkinter import scrolledtext
-
 from openai import OpenAI
-
 
 # from assignment import QuestionLocation
 

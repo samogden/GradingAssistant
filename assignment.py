@@ -1,25 +1,16 @@
 #!env python
 from __future__ import annotations
 
-import base64
 import collections
-import io
-import itertools
-import json
 import logging
 import os
-import random
 import tkinter as tk
 from typing import List
 
-import PIL.Image
-import pymupdf as fitz
-import requests
 import pandas as pd
+import pymupdf as fitz
 
 import question
-
-# from question import Response_fromPDF as Question, Response_fromPDF, Response
 from misc import get_file_list
 
 logging.basicConfig()

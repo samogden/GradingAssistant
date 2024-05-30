@@ -1,24 +1,17 @@
 #! env python
 
-
 import argparse
-import base64
-import itertools
-import json
 import logging
-import os
 import random
 import threading
-from typing import List
-import io
-import dotenv
-
-import PIL.Image
-import PIL.ImageTk as ImageTK
-
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import scrolledtext as tk_scrolledtext
+from typing import List
+
+import PIL.Image
+import PIL.ImageTk as ImageTK
+import dotenv
 
 from assignment import Assignment, ScannedExam
 from question import Question
@@ -33,7 +26,7 @@ def parse_flags():
   
   parser.add_argument("--input_dir", default="~/Documents/CSUMB/grading/CST334/2024Spring/Exam3/00-base")
   parser.add_argument("--query_ai", action="store_true")
-  parser.add_argument("--base_exam", default="../exam_generation/exam.pdf")
+  parser.add_argument("--base_exam", default="../exam_randomization/exam_generation/exam.pdf")
   parser.add_argument("--autograde", action="store_true")
   
   parser.add_argument("--debug", action="store_true")
