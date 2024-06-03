@@ -25,6 +25,7 @@ def parse_flags():
   
   return parser.parse_args()
 
+
 def main():
   flags = parse_flags()
   dotenv.load_dotenv()
@@ -41,17 +42,16 @@ def main():
   root = tk.Tk()
 
   menubar = tk.Menu(root)
-  filemenu = tk.Menu(menubar, tearoff=0)
-  filemenu.add_command(label="Save", command=(lambda : a.get_feedback()))
-  filemenu.add_command(label="Exit", command=root.quit)
-  menubar.add_cascade(label="File", menu=filemenu)
+  file_menu = tk.Menu(menubar, tearoff=0)
+  file_menu.add_command(label="Save", command=(lambda: a.get_feedback()))
+  file_menu.add_command(label="Exit", command=root.quit)
+  menubar.add_cascade(label="File", menu=file_menu)
   
   root.config(menu=menubar)
   
   a.get_tkinter_frame(root)
   root.mainloop()
   
-
 
 if __name__ == "__main__":
   main()

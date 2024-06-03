@@ -20,7 +20,8 @@ log.setLevel(logging.DEBUG)
 
 class Assignment:
   """
-  An assignment is an individual assignment that will contain a number of Questions, each of which contain a number of Responses.
+  An assignment is an individual assignment that will contain a number of Questions,
+  each of which contain a number of Responses.
   This will better match the structure of real assignments, and thus be flexible for different sources.
   """
   
@@ -43,6 +44,7 @@ class Assignment:
     
     # Make a Listbox for questions
     question_listbox = tk.Listbox(frame, yscrollcommand=question_scrollbar.set)
+    
     def redraw_questions():
       question_listbox.delete(0, tk.END)
       for i, q in enumerate(self.questions):
@@ -70,12 +72,12 @@ class Assignment:
         if r.score is None:
           continue
         records.append({
-          "student" : r.student_id,
-          "input_file" : r.input_file,
-          "question" : q.question_number,
-          "score" : r.score,
-          "feedback" : r.feedback,
-          "score_gpt" : r.score_gpt,
+          "student": r.student_id,
+          "input_file": r.input_file,
+          "question": q.question_number,
+          "score": r.score,
+          "feedback": r.feedback,
+          "score_gpt": r.score_gpt,
           # "feedback_gpt" : r.feedback_gpt
         })
     df = pd.DataFrame.from_records(records)
@@ -85,7 +87,7 @@ class Assignment:
       'input_file': 'min',
       'question': 'nunique',
       'score': 'sum',
-      'score_gpt' : 'sum'
+      'score_gpt': 'sum'
     })
     df_grouped_and_summed.to_csv("grades.csv")
     # todo: add feedback file (But since feedback isn't gathered currently it's a moot point)
@@ -98,6 +100,7 @@ class Assignment:
         r.update_from_gpt()
         r.score = r.score_gpt
 
+
 class ScannedExam(Assignment):
   def __init__(self, path_to_base_exam, path_to_scanned_exams, limit=None):
     files = [os.path.join(f) for f in get_file_list(path_to_scanned_exams) if f.endswith(".pdf")]
@@ -108,14 +111,13 @@ class ScannedExam(Assignment):
     # todo: If there is no base exam then default to a per-page grading scheme
     question_locations = QuestionLocation.get_question_locations(path_to_base_exam)
     
-    question_responses : collections.defaultdict[int,List[question.Response]] = collections.defaultdict(list)
+    question_responses: collections.defaultdict[int, List[question.Response]] = collections.defaultdict(list)
     
     # Break up each pdf into the responses
     for student_id, f in enumerate(files):
       log.info(f"Loading student {student_id+1}/{len(files)}")
-      for question_number, response in question.Response_fromPDF.load_from_pdf(student_id, f, question_locations).items():
-        question_responses[question_number].append(response)
-    
+      for q_number, response in question.Response_fromPDF.load_from_pdf(student_id, f, question_locations).items():
+        question_responses[q_number].append(response)
     
     # Make questions from each response
     questions = [
@@ -126,7 +128,7 @@ class ScannedExam(Assignment):
     super().__init__(questions)
 
 
-class QuestionLocation():
+class QuestionLocation:
   def __init__(self, question_number, page_number, location):
     self.question_number = question_number
     self.page_number = page_number

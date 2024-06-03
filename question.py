@@ -14,6 +14,7 @@ from tkinter import scrolledtext
 from typing import List, Dict
 
 import PIL.Image
+import PIL.ImageTk
 import pymupdf as fitz
 from openai import OpenAI
 
@@ -23,17 +24,17 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
+
 class Question:
-  def __init__(self, question_number, responses : List[Response], max_points = 0):
+  def __init__(self, question_number, responses: List[Response], max_points=0):
     self.question_number = question_number
-    self.responses : List[Response] = responses
+    self.responses: List[Response] = responses
     self.max_points = max_points
   
   def __str__(self):
     return f"Question({self.question_number}, {len(self.responses)})"
   
-  
-  def get_tkinter_frame(self, parent, callback=(lambda : None)) -> tk.Frame:
+  def get_tkinter_frame(self, parent, callback=(lambda: None)) -> tk.Frame:
     frame = tk.Frame(parent)
     
     # Make a scrollbar for the Listbox
@@ -42,11 +43,13 @@ class Question:
     
     # Make a Listbox for questions
     response_listbox = tk.Listbox(frame, yscrollcommand=question_scrollbar.set)
+    
     def redraw_responses():
-      callback() # todo make this propagate better?
+      callback()  # todo make this propagate better?
       response_listbox.delete(0, tk.END)
       for i, r in enumerate(self.responses):
         response_listbox.insert(i, f"{'ungraded' if r.score is None else 'graded'}")
+        
     redraw_responses()
     response_listbox.pack()
     response_listbox.focus()
@@ -56,7 +59,6 @@ class Question:
       response_window = tk.Toplevel(parent)
       response_frame = tk.Frame(response_window)
       response_frame.pack()
-      
       
       def submit_callback():
         replace_response_frame(response_frame)
@@ -204,7 +206,6 @@ class Response(abc.ABC):
         response = self.get_chat_gpt_response(fakeit=fakeit)
       except Exception as e:
         log.error(e)
-        log.error(e.with_traceback())
         log.debug("Trying again")
         tries += 1
     if response is None:

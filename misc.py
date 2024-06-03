@@ -21,4 +21,3 @@ def get_file_list(dir_to_deduplicate) -> List[str]:
       ]
     )
   )
-
