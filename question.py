@@ -11,22 +11,26 @@ import random
 import threading
 import tkinter as tk
 from tkinter import scrolledtext
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import PIL.Image
 import PIL.ImageTk
+import PIL.ImageChops
 import pymupdf as fitz
 from openai import OpenAI
+
+import misc
 
 # from assignment import QuestionLocation
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
-class Question:
-  def __init__(self, question_number, responses: List[Response], max_points=0):
+class Question(misc.Costable):
+  def __init__(self, question_number, responses: List[Response], max_points=0, **flags):
+    self.flags = flags
     self.question_number = question_number
     self.responses: List[Response] = responses
     self.max_points = max_points
@@ -100,13 +104,18 @@ class Question:
     
     frame.pack()
     return frame
+  
+  def get_token_count(self):
+    return sum([r.usage for r in self.responses])
 
 
 class Response(abc.ABC):
   """
   Class for containing student responses to a question
   """
-  def __init__(self, student_id, input_file):
+  def __init__(self, student_id, input_file, **flags):
+    self.flags = flags
+    
     self.student_id = student_id
     self.input_file = os.path.basename(input_file)
     
@@ -116,6 +125,8 @@ class Response(abc.ABC):
     self.student_text = None  # gpt
     self.score_gpt = None     # gpt
     self.feedback_gpt = None  # gpt
+    
+    self.usage = misc.Costable.TokenCounts()
     
   def __str__(self):
     return f"Response({self.student_id}, {self.score})"
@@ -128,7 +139,7 @@ class Response(abc.ABC):
     log.debug(f"Updating score from {self.score} to {new_score}")
     self.score = new_score
   
-  def get_chat_gpt_response(self, system_prompt=None, examples=None, max_tokens=1000, fakeit=False) -> Dict:
+  def get_chat_gpt_response(self, system_prompt=None, examples=None, max_tokens=1000, fakeit=False) -> Tuple[Dict, misc.Costable.TokenCounts]:
     log.debug("Sending request to OpenAI...")
     
     messages = []
@@ -183,7 +194,8 @@ class Response(abc.ABC):
         presence_penalty=0
       )
       
-      return json.loads(response.choices[0].message.content)
+      log.debug(f"response: {response.usage}")
+      return json.loads(response.choices[0].message.content), misc.Costable.TokenCounts(response.usage)
     else:
       # time.sleep(1)
       return {
@@ -191,7 +203,7 @@ class Response(abc.ABC):
         'explanation': 'This is a fake explanation',
         'possible points': 8,
         'student text': 'text that the student said'
-        }
+        }, misc.Costable.TokenCounts()
   
   
   def update_from_gpt(self, callback_func=(lambda : None), ignore_existing=False, fakeit=False, max_tries=3):
@@ -201,15 +213,16 @@ class Response(abc.ABC):
       return
     response = None
     tries = 0
+    usage = None
     while response is None and tries < max_tries:
       try:
-        response = self.get_chat_gpt_response(fakeit=fakeit)
+        response, usage = self.get_chat_gpt_response(fakeit=fakeit)
       except Exception as e:
         log.error(e)
         log.debug("Trying again")
         tries += 1
     if response is None:
-      response = self.get_chat_gpt_response(fakeit=True
+      response, _ = self.get_chat_gpt_response(fakeit=True
       )
     if "student text" in response:
       self.student_text = response["student text"]
@@ -221,16 +234,19 @@ class Response(abc.ABC):
     else:
       self.score_gpt = response["awarded_points"]
     
+    if usage is not None:
+      self.usage += usage
+    
     callback_func()
 
 
 class Response_fromPDF(Response):
-  def __init__(self, student_id, input_file, img: PIL.Image.Image):
-    super().__init__(student_id, input_file)
-    self.img : PIL.Image.Image = img
+  def __init__(self, student_id, input_file, img: PIL.Image.Image, **flags):
+    super().__init__(student_id, input_file, **flags)
+    self.img: PIL.Image.Image = img
   
   @classmethod
-  def load_from_pdf(cls, student_id, path_to_pdf, question_locations, question_margin=10) -> Dict[int,Response]:
+  def load_from_pdf(cls, student_id, path_to_pdf, question_locations, question_margin=10, **flags) -> Dict[int,Response]:
     pdf_doc = fitz.open(path_to_pdf)
     responses: Dict[int,Response] = {}
     for (page_number, page) in enumerate(pdf_doc.pages()):
@@ -252,17 +268,46 @@ class Response_fromPDF(Response):
         responses[q_start.question_number] = cls(
           student_id,
           path_to_pdf,
-          PIL.Image.open(io.BytesIO(question_pixmap.tobytes()))
+          PIL.Image.open(io.BytesIO(question_pixmap.tobytes())),
+          **flags
         )
       
     return responses
   
   def get_b64(self, format="PNG"):
+
+    # from https://stackoverflow.com/a/10616717
+    def trim(im):
+      bg = PIL.Image.new(im.mode, im.size, im.getpixel((0,0)))
+      diff = PIL.ImageChops.difference(im, bg)
+      diff = PIL.ImageChops.add(diff, diff, 2.0, -100)
+      bbox = diff.getbbox()
+      if bbox:
+        return im.crop(bbox)
+    
+    if "image_scale" in self.flags:
+      log.debug(f"Scaling image to {self.flags['image_scale']}")
+      original_width, original_height = self.img.size
+      img = self.img.resize(
+        (
+          int(original_width * self.flags["image_scale"]),
+          int(original_height * self.flags["image_scale"])
+        ),
+        PIL.Image.LANCZOS
+      )
+    else:
+      img = self.img
+      
+    if "trim" in self.flags and self.flags["trim"]:
+      log.debug("trimming...")
+      img = trim(img)
+    
+    img.save("temp.png")
     # Create a BytesIO buffer to hold the image data
     buffered = io.BytesIO()
     
     # Save the image to the buffer in the specified format
-    self.img.save(buffered, format=format)
+    img.save(buffered, format=format)
     
     # Get the byte data from the buffer
     img_byte = buffered.getvalue()

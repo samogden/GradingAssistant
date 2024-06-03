@@ -21,6 +21,9 @@ def parse_flags():
   parser.add_argument("--base_exam", default="../exam_randomization/exam_generation/exam.pdf")
   parser.add_argument("--autograde", action="store_true")
   
+  parser.add_argument("--image_scale", default=1.0, type=float)
+  parser.add_argument("--trim", action="store_true")
+  
   parser.add_argument("--debug", action="store_true")
   
   return parser.parse_args()
@@ -30,13 +33,14 @@ def main():
   flags = parse_flags()
   dotenv.load_dotenv()
   
-  a = ScannedExam(flags.base_exam, flags.input_dir)
+  a = ScannedExam(flags.base_exam, flags.input_dir, limit=2, **vars(flags))
   print(a)
   if flags.autograde:
     try:
-      a.autograde()
+      a.autograde(**vars(flags))
     finally:
       a.get_feedback()
+      log.info(f"Total tokens: {a.get_token_count()}")
     return
   
   root = tk.Tk()

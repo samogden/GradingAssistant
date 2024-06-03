@@ -10,6 +10,7 @@ from typing import List
 import pandas as pd
 import pymupdf as fitz
 
+import misc
 import question
 from misc import get_file_list
 
@@ -18,14 +19,14 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class Assignment:
+class Assignment(misc.Costable):
   """
   An assignment is an individual assignment that will contain a number of Questions,
   each of which contain a number of Responses.
   This will better match the structure of real assignments, and thus be flexible for different sources.
   """
   
-  def __init__(self, questions: List[question.Question]):
+  def __init__(self, questions: List[question.Question], **flags):
     self.questions = questions
   
   def __str__(self):
@@ -78,7 +79,7 @@ class Assignment:
           "score": r.score,
           "feedback": r.feedback,
           "score_gpt": r.score_gpt,
-          # "feedback_gpt" : r.feedback_gpt
+          "feedback_gpt" : r.feedback_gpt
         })
     df = pd.DataFrame.from_records(records)
     df.to_csv("full.csv")
@@ -92,17 +93,20 @@ class Assignment:
     df_grouped_and_summed.to_csv("grades.csv")
     # todo: add feedback file (But since feedback isn't gathered currently it's a moot point)
   
-  def autograde(self):
+  def autograde(self, **kwargs):
     for q in self.questions:
       log.debug(f"Question: {q}")
       for r in q.responses:
         log.debug(f"response: {r.student_id}")
         r.update_from_gpt()
         r.score = r.score_gpt
-
+      # break
+  
+  def get_token_count(self):
+    return sum([q.get_token_count() for q in self.questions])
 
 class ScannedExam(Assignment):
-  def __init__(self, path_to_base_exam, path_to_scanned_exams, limit=None):
+  def __init__(self, path_to_base_exam, path_to_scanned_exams, limit=None, **flags):
     files = [os.path.join(f) for f in get_file_list(path_to_scanned_exams) if f.endswith(".pdf")]
     
     if limit is not None:
@@ -116,7 +120,7 @@ class ScannedExam(Assignment):
     # Break up each pdf into the responses
     for student_id, f in enumerate(files):
       log.info(f"Loading student {student_id+1}/{len(files)}")
-      for q_number, response in question.Response_fromPDF.load_from_pdf(student_id, f, question_locations).items():
+      for q_number, response in question.Response_fromPDF.load_from_pdf(student_id, f, question_locations, **flags).items():
         question_responses[q_number].append(response)
     
     # Make questions from each response
@@ -125,7 +129,7 @@ class ScannedExam(Assignment):
       for (question_number, responses) in question_responses.items()
     ]
       
-    super().__init__(questions)
+    super().__init__(questions, **flags)
 
 
 class QuestionLocation:
