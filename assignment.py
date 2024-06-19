@@ -145,7 +145,6 @@ class ScannedExam(Assignment):
       
     super().__init__(questions, **flags)
 
-
 class QuestionLocation:
   def __init__(self, question_number, page_number, location):
     self.question_number = question_number
@@ -166,3 +165,4 @@ class QuestionLocation:
           question_locations.append(QuestionLocation(question_number, page_number, text_instances[0].tl.y))
     
     return question_locations
+

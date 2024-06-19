@@ -114,11 +114,10 @@ class Response(abc.ABC):
   """
   Class for containing student responses to a question
   """
-  def __init__(self, student_id, input_file, **flags):
+  def __init__(self, student_id, *args, **flags):
     self.flags = flags
     
     self.student_id = student_id
-    self.input_file = os.path.basename(input_file)
     
     # Things that we'll get from the user or from elsewhere
     self.score = None         # user/gpt
@@ -171,9 +170,18 @@ class Response(abc.ABC):
       self.usage += usage
     
     callback_func()
+  
+  @abc.abstractmethod
+  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
+    pass
+
+class Response_fromFile(Response):
+  def __init__(self, student_id, input_file, *args, **kwargs):
+    super().__init__(student_id, *args, **kwargs)
+    self.input_file = os.path.basename(input_file)
 
 
-class Response_fromPDF(Response):
+class Response_fromPDF(Response_fromFile):
   def __init__(self, student_id, input_file, img: PIL.Image.Image, **flags):
     super().__init__(student_id, input_file, **flags)
     self.img: PIL.Image.Image = img
@@ -335,3 +343,67 @@ class Response_fromPDF(Response):
     
     
     return frame
+
+
+
+class Response_fromText(Response):
+  def __init__(self, student_id, response_text, *args, **kwargs):
+    super().__init__(student_id, *args, **kwargs)
+    self.response_text = response_text
+  
+  def _get_student_response_for_gpt(self):
+    # todo: contextualize this if we're actually going to send it to GPT
+    return {
+      "type": "text",
+      "text":
+        self.student_text
+    }
+  
+  
+  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
+    
+    frame = tk.Frame(parent)
+    
+    # Set up the area that will contain the returned student text
+    student_text_frame = tk.Frame(frame)
+    tk.Label(student_text_frame, text="Student response").pack(anchor=tk.SW)
+    self.text_area_student_text = scrolledtext.ScrolledText(student_text_frame, wrap=tk.WORD, width=80)
+    self.text_area_student_text.pack()
+    student_text_frame.grid(row=0, column=1)
+    
+    self.text_area_student_text.insert(tk.END, self.response_text)
+    
+    # Set up the response form GPT
+    explanation_frame = tk.Frame(frame)
+    
+    explanation_frame_feedback = tk.Frame(explanation_frame)
+    tk.Label(explanation_frame_feedback, text="Feedback").pack(anchor=tk.SW)
+    self.text_area_feedback = scrolledtext.ScrolledText(explanation_frame_feedback, wrap=tk.WORD, width=40)
+    self.text_area_feedback.pack()
+    explanation_frame_feedback.grid(column=1, row=0)
+    
+    explanation_frame.grid(row=1, column=1)
+    
+    # Set up the place to enter the score for the submission
+    def on_submit():
+      self.set_score(int(self.score_box.get(1.0, 'end-1c')))
+      self.feedback = self.text_area_feedback.get(1.0, 'end-1c')
+      parent.destroy()
+      callback()
+    score_frame = tk.Frame(frame)
+    tk.Label(score_frame, text="Score").grid(row=0, column=0)
+    self.score_box = tk.Text(score_frame, height=1, width=4)
+    self.score_box.grid(row=0, column=1)
+    self.submit_button = tk.Button(score_frame, text="Submit", command=on_submit)
+    self.submit_button.grid(row=0, column=2)
+    score_frame.grid(row=2, column=1)
+    
+    
+    return frame
+
+
+
+class Response_fromCanvas(Response_fromText):
+  def __init__(self, student_id, response_text, question_id, *args, **kwargs):
+    super().__init__(student_id, response_text, *args, **kwargs)
+    self.question_id = question_id
