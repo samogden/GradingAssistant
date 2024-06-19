@@ -6,8 +6,10 @@ import logging
 import os
 import shutil
 import tkinter as tk
-from typing import List
+from typing import List, Dict
 
+import canvasapi
+import html2text
 import pandas as pd
 import pymupdf as fitz
 
@@ -170,3 +172,43 @@ class QuestionLocation:
     
     return question_locations
 
+
+class CanvasQuiz(Assignment):
+  def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course):
+    # We want to grab responses and next them withing questions, which we then pass on to the super constructor
+    
+    
+    canvas_assignment = course.get_assignment(quiz.assignment_id)
+    
+    student_submissions = canvas_assignment.get_submissions(include='submission_history')
+    
+    h = html2text.HTML2Text()
+    h.ignore_links = True
+    
+    question_responses: collections.defaultdict[int, List[question.Response]] = collections.defaultdict(list)
+    question_text : Dict[int,str] = {}
+    
+    for submission in student_submissions[:2]:
+      student_id = submission.user_id
+      log.debug(f"Parsing student: \"{course.get_user(student_id)}\"")
+      
+      try:
+        # todo: does it make sense to take element 0?  Is this always the most recent?
+        student_submission = submission.submission_history[0]["submission_data"]
+      except KeyError:
+        # Then the studnet likely didn't submit anything
+        continue
+      for q_number, r in enumerate(student_submission):
+        # log.debug(f"r: {r}")
+        question_id = r["question_id"]
+        if question_id not in question_text:
+          question_text[question_id] = f"{h.handle(quiz.get_question(question_id).question_text)} (Max: {quiz.get_question(question_id).points_possible} points)"
+        question_responses[q_number].append(question.Response_fromCanvas(student_id, question_text[question_id], h.handle(r["text"]), r["question_id"]))
+    
+    # Make questions from each response
+    questions = [
+      question.Question(question_number, responses)
+      for (question_number, responses) in question_responses.items()
+    ]
+    
+    super().__init__(questions)
