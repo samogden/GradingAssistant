@@ -50,11 +50,11 @@ class CanvasQuiz(Assignment):
         continue
       for q_number, r in enumerate(student_submission):
         # log.debug(f"r: {r}")
-        # question_id = r["question_id"]
-        # if question_id not in question_text:
-        #   question = quiz.get_question(question_id)
-        #   question_text[question_id] = question.question_text
-        question_responses[q_number].append(question.Response_fromCanvas(student_id, r["text"], r["question_id"]))
+        question_id = r["question_id"]
+        log.debug(f"q: {pprint.pformat(quiz.get_question(question_id).__dict__)}")
+        if question_id not in question_text:
+          question_text[question_id] = f"{quiz.get_question(question_id).question_text} (Max: {quiz.get_question(question_id).points_possible} points)"
+        question_responses[q_number].append(question.Response_fromCanvas(student_id, question_text[question_id], r["text"], r["question_id"]))
     
     # Make questions from each response
     questions = [

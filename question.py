@@ -347,8 +347,9 @@ class Response_fromPDF(Response_fromFile):
 
 
 class Response_fromText(Response):
-  def __init__(self, student_id, response_text, *args, **kwargs):
+  def __init__(self, student_id, question_text, response_text, *args, **kwargs):
     super().__init__(student_id, *args, **kwargs)
+    self.question_text = question_text
     self.response_text = response_text
   
   def _get_student_response_for_gpt(self):
@@ -364,8 +365,10 @@ class Response_fromText(Response):
     
     frame = tk.Frame(parent)
     
+    
     # Set up the area that will contain the returned student text
     student_text_frame = tk.Frame(frame)
+    tk.Label(student_text_frame, text=self.question_text).pack()
     tk.Label(student_text_frame, text="Student response").pack(anchor=tk.SW)
     self.text_area_student_text = scrolledtext.ScrolledText(student_text_frame, wrap=tk.WORD, width=80)
     self.text_area_student_text.pack()
@@ -404,6 +407,6 @@ class Response_fromText(Response):
 
 
 class Response_fromCanvas(Response_fromText):
-  def __init__(self, student_id, response_text, question_id, *args, **kwargs):
-    super().__init__(student_id, response_text, *args, **kwargs)
+  def __init__(self, student_id, question_text, response_text, question_id, *args, **kwargs):
+    super().__init__(student_id, question_text, response_text, *args, **kwargs)
     self.question_id = question_id
