@@ -171,8 +171,43 @@ class Response(abc.ABC):
     
     callback_func()
   
-  @abc.abstractmethod
   def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
+    
+    frame = tk.Frame(parent)
+    
+    self.content_frame = self.get_tkinter_content(frame, grading_helper, callback)
+    self.content_frame.grid(row=0,column=0)
+    
+    # Set up the response form GPT
+    explanation_frame = tk.Frame(frame)
+    
+    explanation_frame_feedback = tk.Frame(explanation_frame)
+    tk.Label(explanation_frame_feedback, text="Feedback").pack(anchor=tk.SW)
+    self.text_area_feedback = scrolledtext.ScrolledText(explanation_frame_feedback, wrap=tk.WORD, width=40)
+    self.text_area_feedback.pack()
+    explanation_frame_feedback.grid(column=1, row=0)
+    
+    explanation_frame.grid(row=1, column=1)
+    
+    # Set up the place to enter the score for the submission
+    def on_submit():
+      self.set_score(int(self.score_box.get(1.0, 'end-1c')))
+      self.feedback = self.text_area_feedback.get(1.0, 'end-1c')
+      parent.destroy()
+      callback()
+    score_frame = tk.Frame(frame)
+    tk.Label(score_frame, text="Score").grid(row=0, column=0)
+    self.score_box = tk.Text(score_frame, height=1, width=4)
+    self.score_box.grid(row=0, column=1)
+    self.submit_button = tk.Button(score_frame, text="Submit", command=on_submit)
+    self.submit_button.grid(row=0, column=2)
+    score_frame.grid(row=2, column=1)
+    
+    return frame
+  
+  
+  @abc.abstractmethod
+  def get_tkinter_content(self, parent, grading_help : ai_helper.AI_Helper, callback=(lambda : None)):
     pass
 
 class Response_fromFile(Response):
@@ -269,7 +304,7 @@ class Response_fromPDF(Response_fromFile):
       }
     }
   
-  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
+  def get_tkinter_content(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
     
     frame = tk.Frame(parent)
     
@@ -285,7 +320,7 @@ class Response_fromPDF(Response_fromFile):
     self.text_area_student_text.pack()
     student_text_frame.grid(row=0, column=1)
     
-    # Set up the response form GPT
+    # Set up the response from GPT
     explanation_frame = tk.Frame(frame)
     
     explanation_frame_gpt = tk.Frame(explanation_frame)
@@ -293,28 +328,6 @@ class Response_fromPDF(Response_fromFile):
     self.text_area_gpt_response = scrolledtext.ScrolledText(explanation_frame_gpt, wrap=tk.WORD, width=40)
     self.text_area_gpt_response.pack()
     explanation_frame_gpt.grid(column=0, row=0)
-    
-    explanation_frame_feedback = tk.Frame(explanation_frame)
-    tk.Label(explanation_frame_feedback, text="Feedback").pack(anchor=tk.SW)
-    self.text_area_feedback = scrolledtext.ScrolledText(explanation_frame_feedback, wrap=tk.WORD, width=40)
-    self.text_area_feedback.pack()
-    explanation_frame_feedback.grid(column=1, row=0)
-    
-    explanation_frame.grid(row=1, column=1)
-    
-    # Set up the place to enter the score for the submission
-    def on_submit():
-      self.set_score(int(self.score_box.get(1.0, 'end-1c')))
-      self.feedback = self.text_area_feedback.get(1.0, 'end-1c')
-      parent.destroy()
-      callback()
-    score_frame = tk.Frame(frame)
-    tk.Label(score_frame, text="Score").grid(row=0, column=0)
-    self.score_box = tk.Text(score_frame, height=1, width=4)
-    self.score_box.grid(row=0, column=1)
-    self.submit_button = tk.Button(score_frame, text="Submit", command=on_submit)
-    self.submit_button.grid(row=0, column=2)
-    score_frame.grid(row=2, column=1)
     
     def update_after_gpt_completion():
       log.debug("Updating after completion")
@@ -361,10 +374,9 @@ class Response_fromText(Response):
     }
   
   
-  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
-    
+  def get_tkinter_content(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
+    log.debug("Getting content...")
     frame = tk.Frame(parent)
-    
     
     # Set up the area that will contain the returned student text
     student_text_frame = tk.Frame(frame)
@@ -375,33 +387,6 @@ class Response_fromText(Response):
     student_text_frame.grid(row=0, column=1)
     
     self.text_area_student_text.insert(tk.END, self.response_text)
-    
-    # Set up the response form GPT
-    explanation_frame = tk.Frame(frame)
-    
-    explanation_frame_feedback = tk.Frame(explanation_frame)
-    tk.Label(explanation_frame_feedback, text="Feedback").pack(anchor=tk.SW)
-    self.text_area_feedback = scrolledtext.ScrolledText(explanation_frame_feedback, wrap=tk.WORD, width=40)
-    self.text_area_feedback.pack()
-    explanation_frame_feedback.grid(column=1, row=0)
-    
-    explanation_frame.grid(row=1, column=1)
-    
-    # Set up the place to enter the score for the submission
-    def on_submit():
-      self.set_score(int(self.score_box.get(1.0, 'end-1c')))
-      self.feedback = self.text_area_feedback.get(1.0, 'end-1c')
-      parent.destroy()
-      callback()
-    score_frame = tk.Frame(frame)
-    tk.Label(score_frame, text="Score").grid(row=0, column=0)
-    self.score_box = tk.Text(score_frame, height=1, width=4)
-    self.score_box.grid(row=0, column=1)
-    self.submit_button = tk.Button(score_frame, text="Submit", command=on_submit)
-    self.submit_button.grid(row=0, column=2)
-    score_frame.grid(row=2, column=1)
-    
-    
     return frame
 
 
