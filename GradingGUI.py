@@ -45,8 +45,9 @@ def main():
     try:
       assignment.autograde(grading_helper, **vars(flags))
     finally:
-      assignment.get_feedback()
       log.info(f"Total tokens: {assignment.get_token_count()}")
+      assignment.get_score_csv()
+      assignment.get_student_feedback()
     return
   
   root = tk.Tk()

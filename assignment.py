@@ -4,6 +4,7 @@ from __future__ import annotations
 import collections
 import logging
 import os
+import shutil
 import tkinter as tk
 from typing import List
 
@@ -67,7 +68,19 @@ class Assignment(misc.Costable):
     frame.pack()
     return frame
     
-  def get_feedback(self):
+  def autograde(self, grading_helper : ai_helper.AI_Helper, **kwargs):
+    for q in self.questions:
+      log.debug(f"Question: {q}")
+      for r in q.responses:
+        log.debug(f"response: {r.student_id}")
+        r.update_from_gpt(grading_helper)
+        r.score = r.score_gpt
+      # break
+  
+  def get_token_count(self):
+    return sum([q.get_token_count() for q in self.questions])
+
+  def get_records(self) -> pd.DataFrame:
     records = []
     for q in self.questions:
       for r in q.responses:
@@ -83,28 +96,28 @@ class Assignment(misc.Costable):
           "feedback_gpt" : r.feedback_gpt
         })
     df = pd.DataFrame.from_records(records)
-    df.to_csv("full.csv")
-    log.debug(df)
+    return df
+
+  def get_score_csv(self):
+    df = self.get_records()
     df_grouped_and_summed = df.drop(["feedback_gpt"], axis=1).groupby("student").agg({
       'input_file': 'min',
       'question': 'nunique',
       'score': 'sum',
       'score_gpt': 'sum'
     })
+    df_grouped_and_summed = df_grouped_and_summed.drop(["question", "score_gpt"], axis=1)
     df_grouped_and_summed.to_csv("grades.csv")
-    # todo: add feedback file (But since feedback isn't gathered currently it's a moot point)
   
-  def autograde(self, grading_helper : ai_helper.AI_Helper, **kwargs):
-    for q in self.questions:
-      log.debug(f"Question: {q}")
-      for r in q.responses:
-        log.debug(f"response: {r.student_id}")
-        r.update_from_gpt(grading_helper)
-        r.score = r.score_gpt
-      # break
-  
-  def get_token_count(self):
-    return sum([q.get_token_count() for q in self.questions])
+  def get_student_feedback(self, feedback_dir="feedback"):
+    if os.path.exists(feedback_dir): shutil.rmtree(feedback_dir)
+    os.mkdir(feedback_dir)
+    df = self.get_records()
+    for student in df["student"]:
+      student_feedback_df = df[df["student"]==student]
+      student_feedback_df.sort_values(by="question")
+      student_feedback_df = student_feedback_df[["question", "score", "feedback"]]
+      student_feedback_df.to_csv(os.path.join(feedback_dir, f"{student}.csv"), index=False)
 
 class ScannedExam(Assignment):
   def __init__(self, path_to_base_exam, path_to_scanned_exams, limit=None, **flags):
