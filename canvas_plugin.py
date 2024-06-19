@@ -11,14 +11,13 @@ import dotenv
 import canvasapi
 from  canvasapi.quiz import Quiz as canvas_Quiz
 
-# from canvasapi import _Quiz
-
-import logging
+import html2text
 
 import ai_helper
 import question
 from assignment import Assignment
 
+import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -33,6 +32,8 @@ class CanvasQuiz(Assignment):
   
     student_submissions = canvas_assignment.get_submissions(include='submission_history')
     
+    h = html2text.HTML2Text()
+    h.ignore_links = True
     
     question_responses: collections.defaultdict[int, List[question.Response]] = collections.defaultdict(list)
     question_text : Dict[int,str] = {}
@@ -53,8 +54,8 @@ class CanvasQuiz(Assignment):
         question_id = r["question_id"]
         log.debug(f"q: {pprint.pformat(quiz.get_question(question_id).__dict__)}")
         if question_id not in question_text:
-          question_text[question_id] = f"{quiz.get_question(question_id).question_text} (Max: {quiz.get_question(question_id).points_possible} points)"
-        question_responses[q_number].append(question.Response_fromCanvas(student_id, question_text[question_id], r["text"], r["question_id"]))
+          question_text[question_id] = f"{h.handle(quiz.get_question(question_id).question_text)} (Max: {quiz.get_question(question_id).points_possible} points)"
+        question_responses[q_number].append(question.Response_fromCanvas(student_id, question_text[question_id], h.handle(r["text"]), r["question_id"]))
     
     # Make questions from each response
     questions = [
