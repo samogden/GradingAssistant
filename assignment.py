@@ -88,7 +88,7 @@ class Assignment(misc.Costable):
           continue
         records.append({
           "student": r.student_id,
-          "input_file": r.input_file,
+          "input_file": None if not hasattr(r, "input_file") else r.input_file,
           "question": q.question_number,
           "score": r.score,
           "feedback": r.feedback,
@@ -118,6 +118,10 @@ class Assignment(misc.Costable):
       student_feedback_df.sort_values(by="question")
       student_feedback_df = student_feedback_df[["question", "score", "feedback"]]
       student_feedback_df.to_csv(os.path.join(feedback_dir, f"{student}.csv"), index=False)
+
+  def get_feedback(self):
+    self.get_score_csv()
+    self.get_student_feedback()
 
 class ScannedExam(Assignment):
   def __init__(self, path_to_base_exam, path_to_scanned_exams, limit=None, **flags):
