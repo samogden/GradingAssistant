@@ -19,6 +19,7 @@ import PIL.ImageChops
 import pymupdf as fitz
 from openai import OpenAI
 
+import ai_helper
 import misc
 
 # from assignment import QuestionLocation
@@ -38,7 +39,7 @@ class Question(misc.Costable):
   def __str__(self):
     return f"Question({self.question_number}, {len(self.responses)})"
   
-  def get_tkinter_frame(self, parent, callback=(lambda: None)) -> tk.Frame:
+  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda: None)) -> tk.Frame:
     frame = tk.Frame(parent)
     
     # Make a scrollbar for the Listbox
@@ -68,8 +69,8 @@ class Question(misc.Costable):
         replace_response_frame(response_frame)
         redraw_responses()
         
-      def show_response(response, parent):
-        question_frame = response.get_tkinter_frame(parent, callback=submit_callback)
+      def show_response(response, grading_helper: ai_helper.AI_Helper, parent):
+        question_frame = response.get_tkinter_frame(parent, grading_helper, callback=submit_callback)
         question_frame.pack()
         
       def replace_response_frame(response_frame):
@@ -91,12 +92,12 @@ class Question(misc.Costable):
         next_response = random.choice(possible_responses)
         response_frame = tk.Frame(response_window)
         response_frame.pack()
-        show_response(next_response, response_frame)
+        show_response(next_response, grading_helper, response_frame)
       
       
       response_idx = response_listbox.curselection()[0]
       selected_response = self.responses[response_idx]
-      show_response(selected_response, response_frame)
+      show_response(selected_response, grading_helper, response_frame)
       return
     
     # Set up a callback for double-clicking
@@ -139,74 +140,7 @@ class Response(abc.ABC):
     log.debug(f"Updating score from {self.score} to {new_score}")
     self.score = new_score
   
-  def get_chat_gpt_response(self, system_prompt=None, examples=None, max_tokens=1000, fakeit=False) -> Tuple[Dict, misc.Costable.TokenCounts]:
-    log.debug("Sending request to OpenAI...")
-    
-    messages = []
-    # Add system prompt, if applicable
-    if system_prompt is not None:
-      messages.append(
-        {
-          "role": "system",
-          "content": [
-            {
-              "type": "text",
-              "text": f"{system_prompt}"
-            }
-          ]
-        }
-      )
-    
-    # Add in examples for few-shot learning
-    if examples is not None:
-      messages.extend(examples)
-    
-    # Add grading criteria
-    messages.append(
-      {
-        "role": "user",
-        "content": [
-          {
-            "type": "text",
-            "text":
-              "Please grade this submission for me."
-              "Please give me a response in the form of a JSON dictionary with the following keys:\n"
-              "possible_points : the number of points possible from the problem\n"
-              "awarded_points : how many points do you award to the student's submission, and only use integer value\n"
-              "student_text : all the handwritten text that the student gave as their response to the question\n"
-              "explanation : why are you assigning the grade you are\n"
-          },
-          self._get_student_response_for_gpt()
-        ]
-      }
-    )
-    
-    if not fakeit:
-      client = OpenAI()
-      response = client.chat.completions.create(
-        model="gpt-4o",
-        response_format={ "type": "json_object"},
-        messages=messages,
-        temperature=1,
-        max_tokens=max_tokens,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-      )
-      
-      log.debug(f"response: {response.usage}")
-      return json.loads(response.choices[0].message.content), misc.Costable.TokenCounts(response.usage)
-    else:
-      # time.sleep(1)
-      return {
-        'awarded points': 8,
-        'explanation': 'This is a fake explanation',
-        'possible points': 8,
-        'student text': 'text that the student said'
-        }, misc.Costable.TokenCounts()
-  
-  
-  def update_from_gpt(self, callback_func=(lambda : None), ignore_existing=False, fakeit=False, max_tries=3):
+  def update_from_gpt(self, grading_helper: ai_helper.AI_Helper, callback_func=(lambda : None), ignore_existing=False, fakeit=False, max_tries=3):
     if (self.feedback_gpt is not None) and (not ignore_existing):
       # Then we can assume it's already been run or started so we should skip
       callback_func()
@@ -216,14 +150,13 @@ class Response(abc.ABC):
     usage = None
     while response is None and tries < max_tries:
       try:
-        response, usage = self.get_chat_gpt_response(fakeit=fakeit)
+        response, usage = grading_helper.get_agent_response(self._get_student_response_for_gpt())
       except Exception as e:
         log.error(e)
         log.debug("Trying again")
         tries += 1
     if response is None:
-      response, _ = self.get_chat_gpt_response(fakeit=True
-      )
+      response, usage = grading_helper.get_agent_response(self._get_student_response_for_gpt())
     if "student text" in response:
       self.student_text = response["student text"]
     else:
@@ -328,7 +261,7 @@ class Response_fromPDF(Response):
       }
     }
   
-  def get_tkinter_frame(self, parent, callback=(lambda : None)) -> tk.Frame:
+  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper, callback=(lambda : None)) -> tk.Frame:
     
     frame = tk.Frame(parent)
     
@@ -393,6 +326,7 @@ class Response_fromPDF(Response):
     threading.Thread(
       target=self.update_from_gpt,
       kwargs={
+        "grading_helper": grading_helper,
         "callback_func" : update_after_gpt_completion,
         "fakeit" : True
       }

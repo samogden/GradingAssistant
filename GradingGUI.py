@@ -6,6 +6,7 @@ import tkinter as tk
 
 import dotenv
 
+import ai_helper
 from assignment import ScannedExam
 
 logging.basicConfig()
@@ -33,27 +34,32 @@ def main():
   flags = parse_flags()
   dotenv.load_dotenv()
   
-  a = ScannedExam(flags.base_exam, flags.input_dir, limit=2, **vars(flags))
-  print(a)
+  assignment = ScannedExam(flags.base_exam, flags.input_dir, limit=4, **vars(flags))
+  if flags.query_ai:
+    grading_helper = ai_helper.AI_Helper()
+  else:
+    grading_helper = ai_helper.AI_Helper_fake()
+  
+  print(assignment)
   if flags.autograde:
     try:
-      a.autograde(**vars(flags))
+      assignment.autograde(grading_helper, **vars(flags))
     finally:
-      a.get_feedback()
-      log.info(f"Total tokens: {a.get_token_count()}")
+      assignment.get_feedback()
+      log.info(f"Total tokens: {assignment.get_token_count()}")
     return
   
   root = tk.Tk()
 
   menubar = tk.Menu(root)
   file_menu = tk.Menu(menubar, tearoff=0)
-  file_menu.add_command(label="Save", command=(lambda: a.get_feedback()))
+  file_menu.add_command(label="Save", command=(lambda: assignment.get_feedback()))
   file_menu.add_command(label="Exit", command=root.quit)
   menubar.add_cascade(label="File", menu=file_menu)
   
   root.config(menu=menubar)
   
-  a.get_tkinter_frame(root)
+  assignment.get_tkinter_frame(root, grading_helper)
   root.mainloop()
   
 

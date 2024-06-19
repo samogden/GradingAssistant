@@ -10,6 +10,7 @@ from typing import List
 import pandas as pd
 import pymupdf as fitz
 
+import ai_helper
 import misc
 import question
 from misc import get_file_list
@@ -36,7 +37,7 @@ class Assignment(misc.Costable):
     # todo: after grading this function can be used ot get a by-student representation of the questions
     pass
 
-  def get_tkinter_frame(self, parent) -> tk.Frame:
+  def get_tkinter_frame(self, parent, grading_helper: ai_helper.AI_Helper) -> tk.Frame:
     frame = tk.Frame(parent)
     
     # Make a scrollbar for the Listbox
@@ -57,7 +58,7 @@ class Assignment(misc.Costable):
     def doubleclick_callback(_):
       selected_question = self.questions[question_listbox.curselection()[0]]
       new_window = tk.Toplevel(parent)
-      question_frame = selected_question.get_tkinter_frame(new_window, callback=redraw_questions)
+      question_frame = selected_question.get_tkinter_frame(new_window, grading_helper, callback=redraw_questions)
       question_frame.pack()
     
     # Set up a callback for double-clicking
@@ -93,12 +94,12 @@ class Assignment(misc.Costable):
     df_grouped_and_summed.to_csv("grades.csv")
     # todo: add feedback file (But since feedback isn't gathered currently it's a moot point)
   
-  def autograde(self, **kwargs):
+  def autograde(self, grading_helper : ai_helper.AI_Helper, **kwargs):
     for q in self.questions:
       log.debug(f"Question: {q}")
       for r in q.responses:
         log.debug(f"response: {r.student_id}")
-        r.update_from_gpt()
+        r.update_from_gpt(grading_helper)
         r.score = r.score_gpt
       # break
   
