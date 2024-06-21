@@ -343,7 +343,6 @@ class Response_fromPDF(Response_fromFile):
       else:
         replace_text_area(self.score_box, self.score_gpt)
 
-
     threading.Thread(
       target=self.update_from_gpt,
       kwargs={

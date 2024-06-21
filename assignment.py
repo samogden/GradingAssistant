@@ -9,6 +9,7 @@ import tkinter as tk
 from typing import List, Dict
 
 import canvasapi
+import canvasapi.quiz
 import html2text
 import pandas as pd
 import pymupdf as fitz
@@ -177,7 +178,6 @@ class CanvasQuiz(Assignment):
   def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course):
     # We want to grab responses and next them withing questions, which we then pass on to the super constructor
     
-    
     canvas_assignment = course.get_assignment(quiz.assignment_id)
     
     student_submissions = canvas_assignment.get_submissions(include='submission_history')
@@ -188,9 +188,9 @@ class CanvasQuiz(Assignment):
     question_responses: collections.defaultdict[int, List[question.Response]] = collections.defaultdict(list)
     question_text : Dict[int,str] = {}
     
-    for submission in student_submissions[:2]:
+    for submission in student_submissions:
       student_id = submission.user_id
-      log.debug(f"Parsing student: \"{course.get_user(student_id)}\"")
+      log.debug(f"Parsing student: \"{student_id}\"")
       
       try:
         # todo: does it make sense to take element 0?  Is this always the most recent?
@@ -212,3 +212,41 @@ class CanvasQuiz(Assignment):
     ]
     
     super().__init__(questions)
+  
+  
+  def push_to_canvas(self, canvas_course : canvasapi.canvas.Course, canvas_quiz_id: int):
+  
+    
+    quiz = canvas_course.get_quiz(87942)
+    
+    submissions : List[canvasapi.quiz.QuizSubmission] = quiz.get_submissions()
+    quiz_questions : List[canvasapi.quiz.QuizQuestion] = quiz.get_questions()
+    log.debug(pprint.pformat(quiz_questions[0].id))
+    
+    
+    
+    for submission in submissions:
+      student_id = submission.user_id
+      quiz_submission_questions : List[canvasapi.quiz.QuizSubmissionQuestion] = submission.get_submission_questions()
+      
+      student_responses = [
+        r for q in self.questions
+        for r in q.responses
+        if r.student_id == student_id
+      ]
+      
+      log.debug(f"submission: {pprint.pformat(submission.get_submission_questions())}")
+      updated_quiz = submission.update_score_and_comments(quiz_submissions=[
+        {
+          'attempt': 1,
+          'fudge_points': "null",
+          'questions': {
+            f"{question.id}": {
+              'score': student_responses[i].score,
+              'comment': student_responses[i].feedback if student_responses[i].feedback is not None else ""
+            }
+            for i, question in enumerate(quiz_submission_questions)
+          }
+        }
+      ])
+    
