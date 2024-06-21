@@ -221,7 +221,6 @@ class CanvasQuiz(Assignment):
     
     submissions : List[canvasapi.quiz.QuizSubmission] = quiz.get_submissions()
     quiz_questions : List[canvasapi.quiz.QuizQuestion] = quiz.get_questions()
-    log.debug(pprint.pformat(quiz_questions[0].id))
     
     
     
@@ -235,7 +234,6 @@ class CanvasQuiz(Assignment):
         if r.student_id == student_id
       ]
       
-      log.debug(f"submission: {pprint.pformat(submission.get_submission_questions())}")
       updated_quiz = submission.update_score_and_comments(quiz_submissions=[
         {
           'attempt': 1,
