@@ -1,5 +1,6 @@
 #!env python
 import json
+import random
 from typing import Tuple, Dict
 
 from openai import OpenAI
@@ -19,6 +20,7 @@ class AI_Helper(object):
       system_prompt=None,
       few_shot_learning_examples=None,
       max_response_tokens=1000,
+      max_possible_points=8,
       *args,
       **kwargs
   ) -> Tuple[Dict, misc.Costable.TokenCounts]:
@@ -84,11 +86,12 @@ class AI_Helper_fake(AI_Helper):
       system_prompt=None,
       few_shot_learning_examples=None,
       max_response_tokens=1000,
+      max_possible_points=8,
       *args,
       **kwargs
   ) -> Tuple[Dict, misc.Costable.TokenCounts]:
     return {
-      'awarded points': 8,
+      'awarded points': random.Random().randint(0,max_possible_points),
       'explanation': 'This is a fake explanation',
       'possible points': 8,
       'student text': 'text that the student said'
