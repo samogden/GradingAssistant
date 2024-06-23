@@ -169,12 +169,6 @@ class GraderCode(Grader):
       container.stop(timeout=1)
       container.remove()
     
-    # results dict _should_ have the following fields
-    # 'build_logs'
-    # 'score'
-    # 'suites' :
-    #   suite_name : { 'FAILED' : [...], 'PASSED': [...] }
-    
     feedback_str = cls.build_feedback(results_dict)
     
     results = misc.Feedback(
