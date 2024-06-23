@@ -4,17 +4,23 @@ from __future__ import annotations
 import collections
 import logging
 import os
+import pprint
 import shutil
+import tempfile
 import tkinter as tk
 from typing import List, Dict
 
 import canvasapi
 import canvasapi.quiz
+import canvasapi.assignment
+
 import html2text
 import pandas as pd
 import pymupdf as fitz
+import requests.exceptions
 
 import ai_helper
+import grader as grader_module
 import misc
 import question
 from misc import get_file_list
@@ -36,6 +42,10 @@ class Assignment(misc.Costable):
   
   def __str__(self):
     return f"Assignment({len(self.questions)}questions, {sum([q.max_points for q in self.questions])}points)"
+  
+  def grade(self, grader: grader_module.Grader):
+    # todo actually run the chosen grading flow?
+    pass
     
   def get_by_student(self):
     # todo: after grading this function can be used ot get a by-student representation of the questions
@@ -220,9 +230,6 @@ class CanvasQuiz(Assignment):
     quiz = canvas_course.get_quiz(87942)
     
     submissions : List[canvasapi.quiz.QuizSubmission] = quiz.get_submissions()
-    quiz_questions : List[canvasapi.quiz.QuizQuestion] = quiz.get_questions()
-    
-    
     
     for submission in submissions:
       student_id = submission.user_id
@@ -247,4 +254,72 @@ class CanvasQuiz(Assignment):
           }
         }
       ])
+
+
+class CanvasAssignment(Assignment):
+  # todo: Will this be a base class eventually?  Or should there be a canvas base class?  Can there be with that mess of an API....?
+  canvas : canvasapi.Canvas = None
+  def __init__(self, course_id : int, assignment_id : int):
+    if self.__class__.canvas is None:
+      self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+    
+    # Set up canvas course information
+    self.canvas_course = self.canvas.get_course(course_id)
+    self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
+    
+    self.submission_files = collections.defaultdict(list)
+    
+    # todo: There's not a great parallel between assignments and quizzes with questions
+    #   I think that means I'll need to refactor to have things be question-based and submission-based
+    #   Although a per-function thing could in fact be submission based, but for right now I'm going
+    #   to just declare them "the same but different" and assume I'm doing things semi-manually
+    #   until I have time for a refactor
+    super().__init__([])
+  
+  def prepare_assignment_for_grading(self, limit=None):
+    
+    # Grab assignment contents
+    log.debug(self.canvas_assignment.submissions_download_url)
+    
+    assignment_submissions : List[canvasapi.assignment.Submission] = self.canvas_assignment.get_submissions()
+    
+    # todo: replace with a proper temporary directory, possibly
+    attachments_dir = "submission_attachments"
+    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
+    os.mkdir(attachments_dir)
+    
+    if limit is not None:
+      assignment_submissions = assignment_submissions[:limit]
+    for submission in assignment_submissions:
+      for attachment in submission.attachments:
+        log.debug(f"Downloading {attachment}")
+        # todo: I'm no longer tied to this naming scheme, so long as I change it in the other packages
+        local_path = os.path.join(attachments_dir, f"student_{submission.user_id}_{attachment.id}_{attachment}")
+        attachment.download(local_path)
+        self.submission_files[submission.user_id].append(local_path)
+  
+  
+  def grade(self, grader: grader_module.Grader):
+    for user_id, files in self.submission_files.items():
+      log.debug(f"grading {user_id} : {files}")
+      # Grade submission
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files)
+      
+      # Push feedback to canvas
+      try:
+        submission = self.canvas_assignment.get_submission(user_id)
+      except requests.exceptions.ConnectionError as e:
+        log.error(e)
+        log.debug(f"Failed on user_id = {user_id})")
+        log.debug(f"username: {self.canvas_course.get_user(user_id)}")
+        continue
+      submission.edit(
+        submission={
+          'posted_grade':feedback.overall_score,
+        },
+        comment={
+          'text_comment': feedback.overall_feedback
+        }
+      )
+      
     

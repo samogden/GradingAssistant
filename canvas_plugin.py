@@ -12,6 +12,7 @@ import canvasapi.quiz
 import dotenv
 
 import ai_helper
+import grader
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -94,7 +95,11 @@ def change_grades():
 
 
 def main():
-  grading_flow_test()
+  log.debug(os.environ.get("CANVAS_API_KEY"))
+  
+  a = assignment.CanvasAssignment(23751, 334701)
+  a.prepare_assignment_for_grading(limit=None)
+  a.grade(grader.Grader())
   
   return
   
