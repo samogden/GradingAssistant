@@ -69,6 +69,55 @@ class GraderCode(Grader):
     log.debug("Docker image built successfully")
     return image
 
+  @staticmethod
+  def build_feedback(results_dict):
+    feedback_strs = [
+      "##############",
+      "## FEEDBACK ##",
+      "##############",
+      "",
+    ]
+    
+    feedback_strs.extend([
+      "## Unit Tests ##",
+    ])
+    for suite_name in results_dict["suites"].keys():
+      feedback_strs.extend([
+        f"SUITE: {suite_name}",
+        "  * failed:",
+      ])
+      
+      if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
+        feedback_strs.extend([
+          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
+          "  * passed:",
+        ])
+      
+      if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
+        feedback_strs.extend([
+          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
+          ""
+        ])
+    feedback_strs.extend([
+      "################",
+      "",
+    ])
+    
+    
+    feedback_strs.extend([
+      "## Build Logs ##",
+    ])
+    feedback_strs.extend([
+      "Build Logs:",
+      ''.join(results_dict["build_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
+    ])
+    feedback_strs.extend([
+      "################",
+    ])
+    
+    return '\n'.join(feedback_strs)
+    
+
   @classmethod
   def run_docker_with_archive(cls, image, student_files_dir, tag_to_test, programming_assignment) -> misc.Feedback:
     log.debug("Grading in docker...")
@@ -126,56 +175,11 @@ class GraderCode(Grader):
     # 'suites' :
     #   suite_name : { 'FAILED' : [...], 'PASSED': [...] }
     
-    feedback_strs = [
-      "##############",
-      "## FEEDBACK ##",
-      "##############",
-      "",
-    ]
-    
-    feedback_strs.extend([
-      "## Unit Tests ##",
-    ])
-    for suite_name in results_dict["suites"].keys():
-      feedback_strs.extend([
-        f"SUITE: {suite_name}",
-        "  * failed:",
-      ])
-      
-      if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
-        feedback_strs.extend([
-          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
-          "  * passed:",
-        ])
-      
-      if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
-        feedback_strs.extend([
-          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
-          ""
-        ])
-    feedback_strs.extend([
-      "################",
-      "",
-    ])
-    
-    
-    feedback_strs.extend([
-      "## Build Logs ##",
-    ])
-    feedback_strs.extend([
-      "Build Logs:",
-      ''.join(results_dict["build_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
-    ])
-    feedback_strs.extend([
-      "################",
-    ])
-    
-    log.debug(f"feedback_strs: {feedback_strs}")
-    log.debug(f"feedback_strs: {pprint.pformat(feedback_strs)}")
+    feedback_str = cls.build_feedback(results_dict)
     
     results = misc.Feedback(
       overall_score=results_dict["score"],
-      overall_feedback='\n'.join(feedback_strs)
+      overall_feedback=feedback_str
     )
     
     log.debug(f"results: {results}")
@@ -191,6 +195,7 @@ class GraderCode(Grader):
     num_repeats = 3 if "num_repeats" not in kwargs else kwargs["num_repeats"]
     
     # Setup input files
+    # todo: convert to using a temp file since I currently have to manually delete later on
     if os.path.exists("student_code"): shutil.rmtree("student_code")
     os.mkdir("student_code")
     
