@@ -99,7 +99,7 @@ def main():
   
   a = assignment.CanvasAssignment(23751, 334701)
   a.prepare_assignment_for_grading(limit=None)
-  a.grade(grader.Grader())
+  a.grade(grader.GraderCode("PA1"))
   
   return
   

@@ -304,6 +304,7 @@ class CanvasAssignment(Assignment):
       log.debug(f"grading {user_id} : {files}")
       # Grade submission
       feedback: misc.Feedback = grader.grade_assignment(input_files=files)
+      log.debug(f"feedback: {feedback}")
       
       # Push feedback to canvas
       try:
