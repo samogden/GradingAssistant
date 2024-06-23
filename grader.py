@@ -227,4 +227,5 @@ class GraderCode(Grader):
           log.debug(f"Updating to use new results: {new_results}")
           results = new_results
     log.debug(f"results: {results}")
+    shutil.rmtree("student_code")
     return results
