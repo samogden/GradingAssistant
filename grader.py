@@ -5,6 +5,7 @@ import os
 import pprint
 import shutil
 import tarfile
+import textwrap
 import time
 from typing import List, Tuple
 import io
@@ -16,7 +17,7 @@ import misc
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 class Grader:
   def __init__(self, *args, **kwargs):
@@ -64,7 +65,7 @@ class GraderCode(Grader):
       pull=True,
       nocache=False
     )
-    log.debug(logs)
+    # log.debug(logs)
     log.debug("Docker image built successfully")
     return image
 
@@ -86,9 +87,9 @@ class GraderCode(Grader):
       container.put_archive(f"/tmp/grading/programming-assignments/{programming_assignment}/src", tarstream)
       
       exit_code, output = container.exec_run(f"ls -l /tmp/grading/programming-assignments/{programming_assignment}/")
-      log.debug(output.decode())
+      # log.debug(output.decode())
       exit_code, output = container.exec_run(f"tree /tmp/grading/programming-assignments/{programming_assignment}/")
-      log.debug(output.decode())
+      # log.debug(output.decode())
       
       
       container.exec_run(f"bash -c 'git checkout {tag_to_test}'")
@@ -99,7 +100,7 @@ class GraderCode(Grader):
           timeout 600 python ../../helpers/grader.py --output /tmp/results.json ;
         '
         """
-      log.debug(f"run_str: {run_str}")
+      # log.debug(f"run_str: {run_str}")
       exit_code, output = container.exec_run(run_str)
       try:
         bits, stats = container.get_archive("/tmp/results.json")
@@ -119,9 +120,62 @@ class GraderCode(Grader):
       container.stop(timeout=1)
       container.remove()
     
+    # results dict _should_ have the following fields
+    # 'build_logs'
+    # 'score'
+    # 'suites' :
+    #   suite_name : { 'FAILED' : [...], 'PASSED': [...] }
+    
+    feedback_strs = [
+      "##############",
+      "## FEEDBACK ##",
+      "##############",
+      "",
+    ]
+    
+    feedback_strs.extend([
+      "## Unit Tests ##",
+    ])
+    for suite_name in results_dict["suites"].keys():
+      feedback_strs.extend([
+        f"SUITE: {suite_name}",
+        "  * failed:",
+      ])
+      
+      if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
+        feedback_strs.extend([
+          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
+          "  * passed:",
+        ])
+      
+      if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
+        feedback_strs.extend([
+          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
+          ""
+        ])
+    feedback_strs.extend([
+      "################",
+      "",
+    ])
+    
+    
+    feedback_strs.extend([
+      "## Build Logs ##",
+    ])
+    feedback_strs.extend([
+      "Build Logs:",
+      ''.join(results_dict["build_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
+    ])
+    feedback_strs.extend([
+      "################",
+    ])
+    
+    log.debug(f"feedback_strs: {feedback_strs}")
+    log.debug(f"feedback_strs: {pprint.pformat(feedback_strs)}")
+    
     results = misc.Feedback(
       overall_score=results_dict["score"],
-      overall_feedback=pprint.pformat(results_dict)
+      overall_feedback='\n'.join(feedback_strs)
     )
     
     log.debug(f"results: {results}")
@@ -150,7 +204,7 @@ class GraderCode(Grader):
     
     # Define a comparison function to allow us to pick either the best or worst outcome
     def is_better(score1, score2):
-      log.debug(f"is_better({score1}, {score2})")
+      # log.debug(f"is_better({score1}, {score2})")
       if use_max:
         return score2 < score1
       return score1 < score2
