@@ -282,6 +282,7 @@ class CanvasAssignment(Assignment):
     log.debug(self.canvas_assignment.submissions_download_url)
     
     assignment_submissions : List[canvasapi.assignment.Submission] = self.canvas_assignment.get_submissions()
+    ungraded_submissions = list(filter(lambda s: s.score is None, assignment_submissions))
     
     # todo: replace with a proper temporary directory, possibly
     attachments_dir = "submission_attachments"
@@ -289,8 +290,8 @@ class CanvasAssignment(Assignment):
     os.mkdir(attachments_dir)
     
     if limit is not None:
-      assignment_submissions = assignment_submissions[:limit]
-    for submission in assignment_submissions:
+      ungraded_submissions = ungraded_submissions[:limit]
+    for submission in ungraded_submissions:
       for attachment in submission.attachments:
         log.debug(f"Downloading {attachment}")
         # todo: I'm no longer tied to this naming scheme, so long as I change it in the other packages
@@ -302,12 +303,6 @@ class CanvasAssignment(Assignment):
   def grade(self, grader: grader_module.Grader):
     for user_id, files in self.submission_files.items():
       log.debug(f"grading {user_id} : {files}")
-      # Grade submission
-      feedback: misc.Feedback = grader.grade_assignment(input_files=files)
-      log.debug(f"feedback: {feedback}")
-      log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
-      
-      # Push feedback to canvas
       try:
         submission = self.canvas_assignment.get_submission(user_id)
       except requests.exceptions.ConnectionError as e:
@@ -315,6 +310,13 @@ class CanvasAssignment(Assignment):
         log.debug(f"Failed on user_id = {user_id})")
         log.debug(f"username: {self.canvas_course.get_user(user_id)}")
         continue
+      
+      # Grade submission
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files)
+      log.debug(f"feedback: {feedback}")
+      log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
+      
+      # Push feedback to canvas
       submission.edit(
         submission={
           'posted_grade':feedback.overall_score,

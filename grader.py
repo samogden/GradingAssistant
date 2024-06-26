@@ -81,39 +81,41 @@ class GraderCode(Grader):
     feedback_strs.extend([
       "## Unit Tests ##",
     ])
-    for suite_name in results_dict["suites"].keys():
+    if "suites" in results_dict:
+      for suite_name in results_dict["suites"].keys():
+        feedback_strs.extend([
+          f"SUITE: {suite_name}",
+          "  * failed:",
+        ])
+        
+        if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
+          feedback_strs.extend([
+            textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
+            "  * passed:",
+          ])
+        
+        if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
+          feedback_strs.extend([
+            textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
+            ""
+          ])
       feedback_strs.extend([
-        f"SUITE: {suite_name}",
-        "  * failed:",
+        "################",
+        "",
       ])
-      
-      if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
-        feedback_strs.extend([
-          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
-          "  * passed:",
-        ])
-      
-      if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
-        feedback_strs.extend([
-          textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
-          ""
-        ])
-    feedback_strs.extend([
-      "################",
-      "",
-    ])
     
     
-    feedback_strs.extend([
-      "## Build Logs ##",
-    ])
-    feedback_strs.extend([
-      "Build Logs:",
-      ''.join(results_dict["build_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
-    ])
-    feedback_strs.extend([
-      "################",
-    ])
+    if "build_logs" in results_dict:
+      feedback_strs.extend([
+        "## Build Logs ##",
+      ])
+      feedback_strs.extend([
+        "Build Logs:",
+        ''.join(results_dict["build_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
+      ])
+      feedback_strs.extend([
+        "################",
+      ])
     
     return '\n'.join(feedback_strs)
     
@@ -195,11 +197,14 @@ class GraderCode(Grader):
     
     # Copy the student code to the staging directory
     for file_extension in [".c", ".h"]:
-      file_to_copy = list(filter(lambda f: f.endswith(file_extension), input_files))[0]
-      shutil.copy(
-        file_to_copy,
-        f"./student_code/student_code{file_extension}"
-      )
+      try:
+        file_to_copy = list(filter(lambda f: f.endswith(file_extension), input_files))[0]
+        shutil.copy(
+          file_to_copy,
+          f"./student_code/student_code{file_extension}"
+        )
+      except IndexError:
+        log.warning("Single file submitted")
     
     # Define a comparison function to allow us to pick either the best or worst outcome
     def is_better(score1, score2):
