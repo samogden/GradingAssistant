@@ -83,20 +83,24 @@ class GraderCode(Grader):
     ])
     if "suites" in results_dict:
       for suite_name in results_dict["suites"].keys():
-        feedback_strs.extend([
-          f"SUITE: {suite_name}",
-          "  * failed:",
-        ])
-        
-        if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
-          feedback_strs.extend([
-            textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
-            "  * passed:",
-          ])
         
         if len(results_dict["suites"][suite_name]["PASSED"]) > 0:
           feedback_strs.extend([
+            f"SUITE: {suite_name}",
+            "  * passed:",
+          ])
+          feedback_strs.extend([
             textwrap.indent('\n'.join(results_dict["suites"][suite_name]["PASSED"]), '    '),
+            ""
+          ])
+          
+        if len(results_dict["suites"][suite_name]["FAILED"]) > 0:
+          feedback_strs.extend([
+            f"SUITE: {suite_name}",
+            "  * failed:",
+          ])
+          feedback_strs.extend([
+            textwrap.indent('\n'.join(results_dict["suites"][suite_name]["FAILED"]), '    '),
             ""
           ])
       feedback_strs.extend([
