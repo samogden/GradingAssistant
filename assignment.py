@@ -330,6 +330,7 @@ class CanvasAssignment(Assignment):
         ffid.flush()
         ffid.seek(0)
         submission.upload_comment(ffid)
+      os.remove("feedback.txt")
       
       # Push feedback to canvas
       submission.edit(
