@@ -98,7 +98,7 @@ def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
   
   a = assignment.CanvasAssignment(23751, 334701)
-  a.prepare_assignment_for_grading(limit=3)
+  a.prepare_assignment_for_grading(limit=3, regrade=False)
   a.grade(grader.GraderCode("PA1"))
   
   return

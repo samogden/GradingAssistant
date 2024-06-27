@@ -70,7 +70,7 @@ class GraderCode(Grader):
     return image
 
   @staticmethod
-  def build_feedback(results_dict):
+  def build_feedback(results_dict) -> str:
     feedback_strs = [
       "##############",
       "## FEEDBACK ##",

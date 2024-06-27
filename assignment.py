@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import collections
+import io
 import logging
 import os
 import pprint
@@ -13,6 +14,7 @@ from typing import List, Dict
 import canvasapi
 import canvasapi.quiz
 import canvasapi.assignment
+import canvasapi.upload
 
 import html2text
 import pandas as pd
@@ -276,13 +278,16 @@ class CanvasAssignment(Assignment):
     #   until I have time for a refactor
     super().__init__([])
   
-  def prepare_assignment_for_grading(self, limit=None):
+  def prepare_assignment_for_grading(self, limit=None, regrade=False):
     
     # Grab assignment contents
     log.debug(self.canvas_assignment.submissions_download_url)
     
     assignment_submissions : List[canvasapi.assignment.Submission] = self.canvas_assignment.get_submissions()
-    ungraded_submissions = list(filter(lambda s: s.score is None, assignment_submissions))
+    if regrade:
+      ungraded_submissions = assignment_submissions
+    else:
+      ungraded_submissions = list(filter(lambda s: s.score is None, assignment_submissions))
     
     # todo: replace with a proper temporary directory, possibly
     attachments_dir = "submission_attachments"
@@ -313,17 +318,27 @@ class CanvasAssignment(Assignment):
       
       # Grade submission
       feedback: misc.Feedback = grader.grade_assignment(input_files=files)
-      log.debug(f"feedback: {feedback}")
-      log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
+      # log.debug(f"feedback: {feedback}")
+      # log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
+      
+      log.debug(f"Preparing feedback for: {user_id}")
+      
+      # up = canvasapi.upload.Uploader(self.canvas_course.req)
+      # self.canvas_course.upload()
+      with io.FileIO("feedback.txt", 'r+') as ffid:
+        ffid.write(feedback.overall_feedback.encode('utf-8'))
+        ffid.flush()
+        ffid.seek(0)
+        submission.upload_comment(ffid)
       
       # Push feedback to canvas
       submission.edit(
         submission={
           'posted_grade':feedback.overall_score,
         },
-        comment={
-          'text_comment': feedback.overall_feedback
-        }
+        # comment={
+        #   'text_comment': feedback.overall_feedback
+        # }
       )
       
     
