@@ -308,7 +308,7 @@ class CanvasAssignment(Assignment):
         self.submission_files[submission.user_id].append(local_path)
   
   
-  def grade(self, grader: grader_module.Grader):
+  def grade(self, grader: grader_module.Grader, push_feedback=False):
     for user_id, files in self.submission_files.items():
       log.debug(f"grading ({user_id}) : {files}")
       try:
@@ -324,26 +324,27 @@ class CanvasAssignment(Assignment):
       # log.debug(f"feedback: {feedback}")
       # log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
       
-      log.debug(f"Preparing feedback for: {user_id}")
+      # log.debug(f"Preparing feedback for: {user_id}")
       
-      # up = canvasapi.upload.Uploader(self.canvas_course.req)
-      # self.canvas_course.upload()
-      # with io.FileIO("feedback.txt", 'r+') as ffid:
+      # todo: combine all of this somehow more elegantly
       with io.FileIO("feedback.txt", 'w+') as ffid:
         ffid.write(feedback.overall_feedback.encode('utf-8'))
         ffid.flush()
         ffid.seek(0)
-        submission.upload_comment(ffid)
-      os.remove("feedback.txt")
+        if push_feedback:
+          submission.upload_comment(ffid)
+      if push_feedback:
+        os.remove("feedback.txt")
       
       # Push feedback to canvas
-      submission.edit(
-        submission={
-          'posted_grade':feedback.overall_score,
-        },
-        # comment={
-        #   'text_comment': feedback.overall_feedback
-        # }
-      )
+      if push_feedback:
+        submission.edit(
+          submission={
+            'posted_grade':feedback.overall_score,
+          },
+          # comment={
+          #   'text_comment': feedback.overall_feedback
+          # }
+        )
       
     

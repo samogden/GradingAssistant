@@ -103,11 +103,12 @@ def main():
   parser.add_argument("--assignment_id", type=int, default=377043)
   parser.add_argument("--name", default="PA1")
   parser.add_argument("--prod", action="store_true")
+  parser.add_argument("--push", action="store_true")
   args = parser.parse_args()
   
   a = assignment.CanvasAssignment(args.course_id, args.assignment_id, args.prod)
   a.prepare_assignment_for_grading(limit=None, regrade=True)
-  a.grade(grader.GraderCode(args.name))
+  a.grade(grader.GraderCode(args.name), push_feedback=args.push)
   
   return
   

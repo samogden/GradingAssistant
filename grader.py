@@ -42,7 +42,7 @@ class GraderCode(Grader):
   
   def __init__(self,
       assignment_path,
-      github_repo="https://github.com/samogden/CST334-assignments.git"
+      github_repo="https://github.com/samogden/CST334-assignments-online.git"
   ):
     self.assignment_path = assignment_path
     self.image = GraderCode.build_docker_image(github_repo=github_repo)
@@ -232,7 +232,7 @@ class GraderCode(Grader):
           self.assignment_path
         )
         if is_better(new_results, results):
-          log.debug(f"Updating to use new results: {new_results}")
+          # log.debug(f"Updating to use new results: {new_results}")
           results = new_results
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
