@@ -42,8 +42,12 @@ class GraderCode(Grader):
   
   def __init__(self,
       assignment_path,
-      github_repo="https://github.com/samogden/CST334-assignments-online.git"
+      use_online=False
   ):
+    if use_online:
+      github_repo="https://github.com/samogden/CST334-assignments-online.git"
+    else:
+      github_repo="https://github.com/samogden/CST334-assignments.git"
     self.assignment_path = assignment_path
     self.image = GraderCode.build_docker_image(github_repo=github_repo)
     super().__init__()
