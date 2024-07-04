@@ -261,10 +261,13 @@ class CanvasQuiz(Assignment):
 class CanvasAssignment(Assignment):
   # todo: Will this be a base class eventually?  Or should there be a canvas base class?  Can there be with that mess of an API....?
   canvas : canvasapi.Canvas = None
-  def __init__(self, course_id : int, assignment_id : int):
+  def __init__(self, course_id : int, assignment_id : int, prod=False):
     if self.__class__.canvas is None:
-      self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
-    
+      if prod:
+        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
+      else:
+        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+        
     # Set up canvas course information
     self.canvas_course = self.canvas.get_course(course_id)
     self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
@@ -307,7 +310,7 @@ class CanvasAssignment(Assignment):
   
   def grade(self, grader: grader_module.Grader):
     for user_id, files in self.submission_files.items():
-      log.debug(f"grading {user_id} : {files}")
+      log.debug(f"grading ({user_id}) : {files}")
       try:
         submission = self.canvas_assignment.get_submission(user_id)
       except requests.exceptions.ConnectionError as e:
@@ -325,7 +328,8 @@ class CanvasAssignment(Assignment):
       
       # up = canvasapi.upload.Uploader(self.canvas_course.req)
       # self.canvas_course.upload()
-      with io.FileIO("feedback.txt", 'r+') as ffid:
+      # with io.FileIO("feedback.txt", 'r+') as ffid:
+      with io.FileIO("feedback.txt", 'w+') as ffid:
         ffid.write(feedback.overall_feedback.encode('utf-8'))
         ffid.flush()
         ffid.seek(0)

@@ -1,4 +1,5 @@
 #!env python
+import argparse
 import logging
 import os
 import pprint
@@ -20,7 +21,7 @@ log.setLevel(logging.DEBUG)
 
 
 def grading_flow_test():
-  canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+  # canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
   course = canvas.get_course(23751)
   log.debug(f"{course.name}")
   
@@ -35,7 +36,7 @@ def grading_flow_test():
   a.push_to_canvas(course, 87942)
 
 def GUI():
-  canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+  # canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
   course = canvas.get_course(23751)
   log.debug(f"{course.name}")
   
@@ -59,7 +60,7 @@ def GUI():
   root.mainloop()
   
 def change_grades():
-  canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+  # canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
   course = canvas.get_course(23751)
   log.debug(f"{course.name}")
   
@@ -97,9 +98,16 @@ def change_grades():
 def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
   
-  a = assignment.CanvasAssignment(23751, 334701)
-  a.prepare_assignment_for_grading(limit=3, regrade=False)
-  a.grade(grader.GraderCode("PA1"))
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--course_id", type=int, default=25068)
+  parser.add_argument("--assignment_id", type=int, default=377043)
+  parser.add_argument("--name", default="PA1")
+  parser.add_argument("--prod", action="store_true")
+  args = parser.parse_args()
+  
+  a = assignment.CanvasAssignment(args.course_id, args.assignment_id, args.prod)
+  a.prepare_assignment_for_grading(limit=None, regrade=True)
+  a.grade(grader.GraderCode(args.name))
   
   return
   

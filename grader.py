@@ -126,7 +126,7 @@ class GraderCode(Grader):
 
   @classmethod
   def run_docker_with_archive(cls, image, student_files_dir, tag_to_test, programming_assignment) -> misc.Feedback:
-    log.debug("Grading in docker...")
+    # log.debug("Grading in docker...")
     tarstream = io.BytesIO()
     with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
       for f in [os.path.join(student_files_dir, f) for f in os.listdir(student_files_dir)]:
@@ -183,7 +183,7 @@ class GraderCode(Grader):
     )
     
     log.debug(f"results: {results}")
-    log.debug("Grading in docker complete")
+    # log.debug("Grading in docker complete")
     
     return results
   
@@ -234,6 +234,6 @@ class GraderCode(Grader):
         if is_better(new_results, results):
           log.debug(f"Updating to use new results: {new_results}")
           results = new_results
-    log.debug(f"results: {results}")
+    log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results

@@ -65,7 +65,8 @@ class Feedback:
   per_item_feedback: Dict[int, str] = dataclasses.field(default_factory=dict)
   
   def __str__(self):
-    return f"Feedback({self.overall_score}, {self.overall_feedback}, {self.per_item_score}, {self.per_item_feedback})"
+    return f"Feedback({self.overall_score}, ...)"
+    # return f"Feedback({self.overall_score}, {self.overall_feedback}, {self.per_item_score}, {self.per_item_feedback})"
   
   def __lt__(self, other):
     if self.overall_score is None:
