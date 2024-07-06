@@ -284,13 +284,11 @@ class CanvasAssignment(Assignment):
   def prepare_assignment_for_grading(self, limit=None, regrade=False):
     
     # Grab assignment contents
-    log.debug(self.canvas_assignment.submissions_download_url)
-    
     assignment_submissions : List[canvasapi.assignment.Submission] = self.canvas_assignment.get_submissions()
     if regrade:
       ungraded_submissions = assignment_submissions
     else:
-      ungraded_submissions = list(filter(lambda s: s.score is None, assignment_submissions))
+      ungraded_submissions = list(filter(lambda s: s.workflow_state == "submitted", assignment_submissions))
     
     # todo: replace with a proper temporary directory, possibly
     attachments_dir = "submission_attachments"
