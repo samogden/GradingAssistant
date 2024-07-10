@@ -115,9 +115,10 @@ def main():
   for assignment_name, assignment_id in args.assignments:
     assignment_id = int(assignment_id)
     log.debug(f"{assignment_name}, {assignment_id}")
-    a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
-    a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
-    a.grade(grader.GraderCode(assignment_name, use_online=args.online), push_feedback=args.push)
+    with assignment.CanvasAssignment(args.course_id, assignment_id, args.prod) as a:
+      # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
+      a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+      a.grade(grader.GraderCode(assignment_name, use_online=args.online), push_feedback=args.push)
   return
   
   

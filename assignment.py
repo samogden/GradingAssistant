@@ -280,6 +280,14 @@ class CanvasAssignment(Assignment):
     #   to just declare them "the same but different" and assume I'm doing things semi-manually
     #   until I have time for a refactor
     super().__init__([])
+    self.code_dir = tempfile.mkdtemp()
+  
+  def __enter__(self):
+    return self
+  
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    shutil.rmtree(self.code_dir)
+   
   
   def prepare_assignment_for_grading(self, limit=None, regrade=False):
     
@@ -291,7 +299,8 @@ class CanvasAssignment(Assignment):
       ungraded_submissions = list(filter(lambda s: s.workflow_state == "submitted", assignment_submissions))
     
     # todo: replace with a proper temporary directory, possibly
-    attachments_dir = "submission_attachments"
+    
+    attachments_dir = self.code_dir
     if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
     os.mkdir(attachments_dir)
     
