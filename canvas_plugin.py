@@ -99,6 +99,8 @@ def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
   
   parser = argparse.ArgumentParser()
+  parser.add_argument("--assignment", dest="assignments", action="append", nargs=2)
+  
   parser.add_argument("--course_id", type=int, default=25068)
   parser.add_argument("--assignment_id", type=int, default=377043)
   parser.add_argument("--name", default="PA1")
@@ -106,11 +108,18 @@ def main():
   parser.add_argument("--online", action="store_true")
   parser.add_argument("--prod", action="store_true")
   parser.add_argument("--push", action="store_true")
+  parser.add_argument("--limit", type=int)
   args = parser.parse_args()
   
-  a = assignment.CanvasAssignment(args.course_id, args.assignment_id, args.prod)
-  a.prepare_assignment_for_grading(limit=None, regrade=args.regrade)
-  a.grade(grader.GraderCode(args.name, use_online=args.online), push_feedback=args.push)
+  log.debug(args.assignments)
+  for assignment_name, assignment_id in args.assignments:
+    assignment_id = int(assignment_id)
+    log.debug(f"{assignment_name}, {assignment_id}")
+    a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
+    a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+    a.grade(grader.GraderCode(assignment_name, use_online=args.online), push_feedback=args.push)
+  return
+  
   
   return
   

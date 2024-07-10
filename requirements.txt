@@ -1,6 +1,9 @@
-Pillow==10.3.0
-pymupdf==1.24.4
+canvasapi==3.2.0
+docker_py==1.10.6
+html2text==2024.2.26
+openai==1.35.13
+pandas==2.2.2
+Pillow==10.4.0
+pymupdf==1.24.7
 python-dotenv==1.0.1
-PyYAML==6.0.1
-pandas
-openai
+Requests==2.32.3
