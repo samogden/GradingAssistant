@@ -281,6 +281,7 @@ class CanvasAssignment(Assignment):
     #   until I have time for a refactor
     super().__init__([])
     self.code_dir = tempfile.mkdtemp()
+    self.needs_grading = True
   
   def __enter__(self):
     return self
@@ -313,6 +314,8 @@ class CanvasAssignment(Assignment):
         local_path = os.path.join(attachments_dir, f"student_{submission.user_id}_{attachment.id}_{attachment}")
         attachment.download(local_path)
         self.submission_files[submission.user_id].append(local_path)
+    
+    self.needs_grading = len(ungraded_submissions) != 0
   
   
   def grade(self, grader: grader_module.Grader, push_feedback=False):
