@@ -59,7 +59,7 @@ class Costable(abc.ABC):
   
 @dataclasses.dataclass
 class Feedback:
-  overall_score: float = None
+  overall_score: float|None = None
   overall_feedback: str = str()
   per_item_score: Dict[int, float] = dataclasses.field(default_factory=dict)
   per_item_feedback: Dict[int, str] = dataclasses.field(default_factory=dict)

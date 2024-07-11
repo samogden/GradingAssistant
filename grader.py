@@ -156,15 +156,16 @@ class GraderCode(Grader):
       run_str = f"""
         bash -c '
           cd /tmp/grading/programming-assignments/{programming_assignment} ;
-          timeout 600 python ../../helpers/grader.py --output /tmp/results.json ;
+          timeout 60 python ../../helpers/grader.py --output /tmp/results.json ;
         '
         """
       # log.debug(f"run_str: {run_str}")
       exit_code, output = container.exec_run(run_str)
       try:
         bits, stats = container.get_archive("/tmp/results.json")
-      except docker.errors.NotFound:
-        return misc.Feedback(overall_score=0, overall_feedback="Error running in docker")
+      except docker.errors.NotFound as e:
+        log.debug(e)
+        return misc.Feedback(overall_score=None, overall_feedback="Error running in docker.  Likely due to timeout.")
       f = io.BytesIO()
       for chunk in bits:
         f.write(chunk)
@@ -238,6 +239,7 @@ class GraderCode(Grader):
         if is_better(new_results, results):
           # log.debug(f"Updating to use new results: {new_results}")
           results = new_results
+        log.info(f"new_results: {new_results}")
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results

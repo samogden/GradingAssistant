@@ -315,7 +315,7 @@ class CanvasAssignment(Assignment):
         attachment.download(local_path)
         self.submission_files[submission.user_id].append(local_path)
     
-    self.needs_grading = len(ungraded_submissions) != 0
+    self.needs_grading = len(list(ungraded_submissions)) != 0
   
   
   def grade(self, grader: grader_module.Grader, push_feedback=False):
