@@ -67,7 +67,7 @@ class GraderCode(Grader):
       fileobj=docker_file,
       tag="grading",
       pull=True,
-      nocache=False
+      nocache=True
     )
     # log.debug(logs)
     log.debug("Docker image built successfully")
