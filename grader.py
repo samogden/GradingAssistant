@@ -57,7 +57,7 @@ class GraderCode(Grader):
     log.info("Building docker image for grading...")
     
     docker_file = io.BytesIO(f"""
-    FROM samogden/csumb:cst334
+    FROM samogden/cst334
     RUN git clone {github_repo} /tmp/grading/
     WORKDIR /tmp/grading
     CMD ["/bin/bash"]
@@ -125,11 +125,25 @@ class GraderCode(Grader):
         "################",
       ])
     
+    
+    if "lint_logs" in results_dict:
+      feedback_strs.extend([
+        "## Lint Logs ##",
+        f"Lint success: {results_dict['lint_success']}\n"
+      ])
+      feedback_strs.extend([
+        "Lint Logs:",
+        ''.join(results_dict["lint_logs"])[1:-1].encode('utf-8').decode('unicode_escape')
+      ])
+      feedback_strs.extend([
+        "################",
+      ])
+    
     return '\n'.join(feedback_strs)
     
 
   @classmethod
-  def run_docker_with_archive(cls, image, student_files_dir, tag_to_test, programming_assignment) -> misc.Feedback:
+  def run_docker_with_archive(cls, image, student_files_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
     # log.debug("Grading in docker...")
     tarstream = io.BytesIO()
     with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
@@ -179,15 +193,21 @@ class GraderCode(Grader):
     finally:
       container.stop(timeout=1)
       container.remove()
+      
+    score = results_dict["score"]
+    if results_dict["lint_success"]:
+      score += lint_bonus
     
     feedback_str = cls.build_feedback(results_dict)
     
     results = misc.Feedback(
-      overall_score=results_dict["score"],
+      overall_score=score,
       overall_feedback=feedback_str
     )
     
     log.debug(f"results: {results}")
+    log.debug(f"results_dict['lint_success']: {results_dict['lint_success']}")
+    log.debug(f"feedback_str: {feedback_str}")
     # log.debug("Grading in docker complete")
     
     return results
