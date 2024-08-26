@@ -7,10 +7,13 @@ import shutil
 import tarfile
 import textwrap
 import time
+from abc import ABC
 from typing import List, Tuple
 import io
 
 import docker
+import docker.errors
+import docker.models.images
 
 import misc
 
@@ -18,6 +21,7 @@ import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
+
 
 class Grader:
   """A class that turns files to feedback.  Note: will probably be generalized to not just have files in the future"""
@@ -37,7 +41,8 @@ class GraderDummy:
     time.sleep(1)
     return misc.Feedback(overall_score=42.0, overall_feedback="Excellent job!")
 
-class Grader_docker(Grader):
+
+class Grader_docker(Grader, ABC):
   client = docker.from_env()
   
   @classmethod
@@ -61,11 +66,10 @@ class Grader_docker(Grader):
     log.debug("Docker image built successfully")
     return image
   
-  
   @classmethod
   def run_docker_with_archive(
       cls,
-      image,
+      image : docker.models.images,
       source_dir : str, # student sorce code directory
       target_dir : str, # target source directory in docker image
       working_dir : str, # working directory (i.e. where to grade from)
@@ -214,10 +218,9 @@ class Grader_CST334(Grader_docker):
       ])
     
     return '\n'.join(feedback_strs)
-    
-
+  
   @classmethod
-  def run_docker_with_archive(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
+  def grade_in_docker(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
     
     # Run our parent docker class
     feedback_str = super().run_docker_with_archive(
@@ -225,7 +228,7 @@ class Grader_CST334(Grader_docker):
       source_dir = source_dir,
       target_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/src",
       working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
-      grade_command="timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
+      grade_command="bash -c 'git checkout {tag_to_test}' ; timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
       results_file="/tmp/results.json"
     )
     
@@ -287,7 +290,7 @@ class Grader_CST334(Grader_docker):
     for tag_to_test in tags:
       # worst_results = {"score" : float('inf')}
       for i in range(num_repeats):
-        new_results = self.run_docker_with_archive(
+        new_results = self.grade_in_docker(
           self.image,
           os.path.abspath("./student_code"),
           tag_to_test,
