@@ -85,12 +85,13 @@ class Grader_docker(Grader, ABC):
     tarstream.seek(0)
     
     # Start the container using the image
-    with cls.client.containers.run(
+    container = cls.client.containers.run(
       image=image,
       detach=True,
       tty=True
-    ) as container:
+    )
     
+    try:
       # Push student files to image
       container.put_archive(f"{target_dir}", tarstream)
       
@@ -124,6 +125,10 @@ class Grader_docker(Grader, ABC):
       for chunk in bits:
         f.write(chunk)
       f.seek(0)
+    finally:
+      container.stop(timeout=1)
+      container.remove()
+      
     
     # Open the tarball we just pulled and read the contents to a string buffer
     with tarfile.open(fileobj=f, mode="r") as tarhandle:
@@ -228,7 +233,7 @@ class Grader_CST334(Grader_docker):
       source_dir = source_dir,
       target_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/src",
       working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
-      grade_command="bash -c 'git checkout {tag_to_test}' ; timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
+      grade_command="git checkout {tag_to_test} ; timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
       results_file="/tmp/results.json"
     )
     
