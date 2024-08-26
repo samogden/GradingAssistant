@@ -119,7 +119,7 @@ def main():
       # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
       a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
       if a.needs_grading:
-        a.grade(grader.GraderCode(assignment_name, use_online=args.online), push_feedback=args.push)
+        a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
       else:
         log.info("No grading needed")
   return

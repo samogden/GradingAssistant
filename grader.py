@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 class Grader:
+  """A class that turns files to feedback.  Note: will probably be generalized to not just have files in the future"""
   def __init__(self, *args, **kwargs):
     pass
   
@@ -36,24 +37,11 @@ class GraderDummy:
     time.sleep(1)
     return misc.Feedback(overall_score=42.0, overall_feedback="Excellent job!")
 
-class GraderCode(Grader):
-
+class Grader_docker(Grader):
   client = docker.from_env()
   
-  def __init__(self,
-      assignment_path,
-      use_online=False
-  ):
-    if use_online:
-      github_repo="https://github.com/samogden/CST334-assignments-online.git"
-    else:
-      github_repo="https://github.com/samogden/CST334-assignments.git"
-    self.assignment_path = assignment_path
-    self.image = GraderCode.build_docker_image(github_repo=github_repo)
-    super().__init__()
-  
   @classmethod
-  def build_docker_image(cls, github_repo):
+  def build_docker_image(cls, base_image, github_repo):
     log.info("Building docker image for grading...")
     
     docker_file = io.BytesIO(f"""
@@ -72,7 +60,93 @@ class GraderCode(Grader):
     # log.debug(logs)
     log.debug("Docker image built successfully")
     return image
+  
+  
+  @classmethod
+  def run_docker_with_archive(
+      cls,
+      image,
+      source_dir : str, # student sorce code directory
+      target_dir : str, # target source directory in docker image
+      working_dir : str, # working directory (i.e. where to grade from)
+      grade_command : str, # command to grade (e.g. `make grade`)
+      results_file=None # The results file, if you want one -- otherwise stdout should be returned
+  ) -> str:
+    
+    # Prepare the files as a tarball to push into container
+    tarstream = io.BytesIO()
+    with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
+      for f in [os.path.join(source_dir, f) for f in os.listdir(source_dir)]:
+        tarhandle.add(f, arcname=os.path.basename(f))
+    tarstream.seek(0)
+    
+    # Start the container using the image
+    with cls.client.containers.run(
+      image=image,
+      detach=True,
+      tty=True
+    ) as container:
+    
+      # Push student files to image
+      container.put_archive(f"{target_dir}", tarstream)
+      
+      # Set up the command to change to the working directory and run the grading command
+      run_str = f"""
+        bash -c '
+          cd {working_dir} ;
+          {grade_command} ;
+        '
+        """
+      
+      # Run the grading commands!
+      exit_code, output = container.exec_run(run_str)
+      
+      # If we're not pulling from a file, just return stdout
+      if results_file is None:
+        # Just return stdout
+        return output
+      
+      # otherwise we should read the results file
+      try:
+        # Try to find the file on the system
+        bits, stats = container.get_archive(f"{results_file}")
+      except docker.errors.NotFound as e:
+        # default to asking what went wrong
+        log.debug(e)
+        return json.dumps({"overall_score": None, "overall_feedback": "Error running in docker.  Likely due to timeout.  Please contact your professor."})
+      
+      # Read file from docker
+      f = io.BytesIO()
+      for chunk in bits:
+        f.write(chunk)
+      f.seek(0)
+    
+    # Open the tarball we just pulled and read the contents to a string buffer
+    with tarfile.open(fileobj=f, mode="r") as tarhandle:
+      results_f = tarhandle.getmember("results.json")
+      f = tarhandle.extractfile(results_f)
+      f.seek(0)
+      results_str = f.read().decode()
+    
+    return results_str
+    
 
+class Grader_CST334(Grader_docker):
+
+  
+  def __init__(self,
+      assignment_path,
+      use_online_repo=False
+  ):
+    super().__init__()
+    if use_online_repo:
+      github_repo="https://github.com/samogden/CST334-assignments-online.git"
+    else:
+      github_repo="https://github.com/samogden/CST334-assignments.git"
+    self.assignment_path = assignment_path
+    self.image = Grader_CST334.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
+    
+  
   @staticmethod
   def build_feedback(results_dict) -> str:
     feedback_strs = [
@@ -143,72 +217,35 @@ class GraderCode(Grader):
     
 
   @classmethod
-  def run_docker_with_archive(cls, image, student_files_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
-    # log.debug("Grading in docker...")
-    tarstream = io.BytesIO()
-    with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
-      for f in [os.path.join(student_files_dir, f) for f in os.listdir(student_files_dir)]:
-        tarhandle.add(f, arcname=os.path.basename(f))
-    tarstream.seek(0)
+  def run_docker_with_archive(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
     
-    container = cls.client.containers.run(
-      image=image,
-      detach=True,
-      tty=True
+    # Run our parent docker class
+    feedback_str = super().run_docker_with_archive(
+      image = image,
+      source_dir = source_dir,
+      target_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/src",
+      working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
+      grade_command="timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
+      results_file="/tmp/results.json"
     )
-    try:
-      container.put_archive(f"/tmp/grading/programming-assignments/{programming_assignment}/src", tarstream)
-      
-      exit_code, output = container.exec_run(f"ls -l /tmp/grading/programming-assignments/{programming_assignment}/")
-      # log.debug(output.decode())
-      exit_code, output = container.exec_run(f"tree /tmp/grading/programming-assignments/{programming_assignment}/")
-      # log.debug(output.decode())
-      
-      
-      container.exec_run(f"bash -c 'git checkout {tag_to_test}'")
-      
-      run_str = f"""
-        bash -c '
-          cd /tmp/grading/programming-assignments/{programming_assignment} ;
-          timeout 60 python ../../helpers/grader.py --output /tmp/results.json ;
-        '
-        """
-      # log.debug(f"run_str: {run_str}")
-      exit_code, output = container.exec_run(run_str)
-      try:
-        bits, stats = container.get_archive("/tmp/results.json")
-      except docker.errors.NotFound as e:
-        log.debug(e)
-        return misc.Feedback(overall_score=None, overall_feedback="Error running in docker.  Likely due to timeout.")
-      f = io.BytesIO()
-      for chunk in bits:
-        f.write(chunk)
-      f.seek(0)
-      
-      with tarfile.open(fileobj=f, mode="r") as tarhandle:
-        results_f = tarhandle.getmember("results.json")
-        f = tarhandle.extractfile(results_f)
-        f.seek(0)
-        results_dict = json.loads(f.read().decode())
-    finally:
-      container.stop(timeout=1)
-      container.remove()
-      
-    score = results_dict["score"]
-    if results_dict["lint_success"]:
-      score += lint_bonus
     
+    # Load results that we asked for
+    results_dict = json.loads(feedback_str)
+    
+    # Add in lint bonus, if applicable
+    if results_dict["lint_success"]:
+      results_dict["score"] += lint_bonus
+    
+    # Build feedback string
     feedback_str = cls.build_feedback(results_dict)
     
+    # Create feedback object
     results = misc.Feedback(
-      overall_score=score,
+      overall_score=results_dict["score"],
       overall_feedback=feedback_str
     )
     
     log.debug(f"results: {results}")
-    log.debug(f"results_dict['lint_success']: {results_dict['lint_success']}")
-    log.debug(f"feedback_str: {feedback_str}")
-    # log.debug("Grading in docker complete")
     
     return results
   
