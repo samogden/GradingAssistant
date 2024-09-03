@@ -80,7 +80,7 @@ class Grader_docker(Grader, ABC):
       # Prepare the files as a tarball to push into container
       tarstream = io.BytesIO()
       with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
-        tarhandle.add(src_file, arcname=os.path.basename(f))
+        tarhandle.add(src_file, arcname=os.path.basename(src_file))
       tarstream.seek(0)
       
       # Push student files to image
