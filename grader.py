@@ -70,19 +70,22 @@ class Grader_docker(Grader, ABC):
   def run_docker_with_archive(
       cls,
       image : docker.models.images,
-      source_dir : str, # student sorce code directory
-      target_dir : str, # target source directory in docker image
-      working_dir : str, # working directory (i.e. where to grade from)
-      grade_command : str, # command to grade (e.g. `make grade`)
-      results_file=None # The results file, if you want one -- otherwise stdout should be returned
+      files_to_copy : List[Tuple[str,str]] = None, # files to copy.  Format is [(src, target), ...]
+      working_dir : str = "/", # working directory (i.e. where to grade from)
+      grade_command : str = "make grade", # command to grade (e.g. `make grade`)
+      results_file=None, # The results file, if you want one -- otherwise stdout should be returned
   ) -> str:
     
-    # Prepare the files as a tarball to push into container
-    tarstream = io.BytesIO()
-    with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
-      for f in [os.path.join(source_dir, f) for f in os.listdir(source_dir)]:
-        tarhandle.add(f, arcname=os.path.basename(f))
-    tarstream.seek(0)
+    def add_file_to_container(src_file, target_dir, container):
+      # Prepare the files as a tarball to push into container
+      tarstream = io.BytesIO()
+      with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
+        tarhandle.add(src_file, arcname=os.path.basename(f))
+      tarstream.seek(0)
+      
+      # Push student files to image
+      container.put_archive(f"{target_dir}", tarstream)
+      
     
     # Start the container using the image
     container = cls.client.containers.run(
@@ -92,8 +95,8 @@ class Grader_docker(Grader, ABC):
     )
     
     try:
-      # Push student files to image
-      container.put_archive(f"{target_dir}", tarstream)
+      for src_file, target_dir in files_to_copy:
+        add_file_to_container(src_file, target_dir, container)
       
       # Set up the command to change to the working directory and run the grading command
       run_str = f"""
@@ -227,11 +230,19 @@ class Grader_CST334(Grader_docker):
   @classmethod
   def grade_in_docker(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
     
+    files_to_copy = [
+      
+      (
+        f,
+        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
+      )
+      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
+    ]
+    
     # Run our parent docker class
     feedback_str = super().run_docker_with_archive(
       image = image,
-      source_dir = source_dir,
-      target_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/src",
+      files_to_copy=files_to_copy,
       working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
       grade_command="git checkout {tag_to_test} ; timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
       results_file="/tmp/results.json"
