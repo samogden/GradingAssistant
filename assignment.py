@@ -9,7 +9,7 @@ import pprint
 import shutil
 import tempfile
 import tkinter as tk
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import canvasapi
 import canvasapi.quiz
@@ -187,12 +187,10 @@ class QuestionLocation:
 
 
 class CanvasQuiz(Assignment):
-  def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course):
+  def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course, all_submissions=False):
     # We want to grab responses and next them withing questions, which we then pass on to the super constructor
     
     canvas_assignment = course.get_assignment(quiz.assignment_id)
-    
-    student_submissions = canvas_assignment.get_submissions(include='submission_history')
     
     h = html2text.HTML2Text()
     h.ignore_links = True
@@ -200,16 +198,9 @@ class CanvasQuiz(Assignment):
     question_responses: collections.defaultdict[int, List[question.Response]] = collections.defaultdict(list)
     question_text : Dict[int,str] = {}
     
-    for submission in student_submissions:
-      student_id = submission.user_id
+    for (student_id, student_submission) in self.get_student_submissions(canvas_assignment):
       log.debug(f"Parsing student: \"{student_id}\"")
       
-      try:
-        # todo: does it make sense to take element 0?  Is this always the most recent?
-        student_submission = submission.submission_history[0]["submission_data"]
-      except KeyError:
-        # Then the studnet likely didn't submit anything
-        continue
       for q_number, r in enumerate(student_submission):
         # log.debug(f"r: {r}")
         question_id = r["question_id"]
@@ -224,6 +215,30 @@ class CanvasQuiz(Assignment):
     ]
     
     super().__init__(questions)
+  
+  def get_student_submissions(self, canvas_assignment: canvasapi.assignment, only_include_latest=True) -> List[Tuple[int, canvasapi.assignment.Submission]]:
+    
+    assignment_submissions = canvas_assignment.get_submissions(include='submission_history')
+    
+    student_submissions = []
+    for submission in assignment_submissions:
+      student_id = submission.user_id
+      log.debug(f"Parsing student: \"{student_id}\"")
+      try:
+        for student_submission in submission.submission_history:
+          student_submissions.append(
+            (
+              student_id,
+              student_submission["submission_data"]
+            )
+          )
+          if only_include_latest:
+            # todo: does it make sense to take element 0?  Is this always the most recent?
+            break
+      except KeyError:
+        continue
+        
+    return student_submissions
   
   
   def push_to_canvas(self, canvas_course : canvasapi.canvas.Course, canvas_quiz_id: int):
@@ -288,7 +303,22 @@ class CanvasAssignment(Assignment):
   
   def __exit__(self, exc_type, exc_val, exc_tb):
     shutil.rmtree(self.code_dir)
-   
+  
+  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission]):
+    
+    attachments_dir = self.code_dir
+    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
+    os.mkdir(attachments_dir)
+    
+    for submission in submissions:
+      for attachment in submission.attachments:
+        # todo: I'm no longer tied to this naming scheme, so long as I change it in the other packages
+        local_path = os.path.join(attachments_dir, f"student_{submission.user_id}_{attachment.id}_{attachment}")
+        log.debug(f"Downloading {attachment} to {local_path}")
+        attachment.download(local_path)
+        self.submission_files[submission.user_id].append(local_path)
+    
+    
   
   def prepare_assignment_for_grading(self, limit=None, regrade=False):
     
@@ -299,24 +329,13 @@ class CanvasAssignment(Assignment):
     else:
       ungraded_submissions = list(filter(lambda s: s.workflow_state == "submitted", assignment_submissions))
     
-    # todo: replace with a proper temporary directory, possibly
-    
-    attachments_dir = self.code_dir
-    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
-    os.mkdir(attachments_dir)
-    
     if limit is not None:
       ungraded_submissions = ungraded_submissions[:limit]
-    for submission in ungraded_submissions:
-      for attachment in submission.attachments:
-        log.debug(f"Downloading {attachment}")
-        # todo: I'm no longer tied to this naming scheme, so long as I change it in the other packages
-        local_path = os.path.join(attachments_dir, f"student_{submission.user_id}_{attachment.id}_{attachment}")
-        attachment.download(local_path)
-        self.submission_files[submission.user_id].append(local_path)
     
     self.needs_grading = len(list(ungraded_submissions)) != 0
-  
+    
+    self.download_submission_files(ungraded_submissions)
+    
   
   def grade(self, grader: grader_module.Grader, push_feedback=False):
     for user_id, files in self.submission_files.items():

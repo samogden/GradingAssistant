@@ -73,6 +73,17 @@ def parse_args():
   
   return args
 
+def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod: bool):
+  with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
+    
+    
+    # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
+    a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+    if a.needs_grading:
+      a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
+    else:
+      log.info("No grading needed")
+
 def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
   
@@ -82,17 +93,21 @@ def main():
   log.debug(f"args.action: {args.action}")
   log.debug(f"args: {args}")
   
-  log.debug(args.assignments)
-  for assignment_name, assignment_id in args.assignments:
-    assignment_id = int(assignment_id)
-    log.debug(f"{assignment_name}, {assignment_id}")
-    with assignment.CanvasAssignment(args.course_id, assignment_id, args.prod) as a:
-      # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
-      a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
-      if a.needs_grading:
-        a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
-      else:
-        log.info("No grading needed")
+  if args.action == "MOSS":
+    run_moss_flow()
+  else:
+    
+    log.debug(args.assignments)
+    for assignment_name, assignment_id in args.assignments:
+      assignment_id = int(assignment_id)
+      log.debug(f"{assignment_name}, {assignment_id}")
+      with assignment.CanvasAssignment(args.course_id, assignment_id, args.prod) as a:
+        # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
+        a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+        if a.needs_grading:
+          a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
+        else:
+          log.info("No grading needed")
   return
   
   
