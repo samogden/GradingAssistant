@@ -234,7 +234,7 @@ class CanvasAssignment(Assignment):
       for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
         log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
         for attachment in submission_attempt['attachments']:
-          local_path = os.path.join(attachments_dir, f"student_{student_submission.user_id}_{attachment['id']}_{attachment['filename']}")
+          local_path = os.path.join(attachments_dir, f"student_{student_submission.user_id}-{attempt_number}_{attachment['id']}_{attachment['filename']}")
           log.debug(f"Downloading {attachment['url']} to {local_path}")
           urllib.request.urlretrieve(attachment['url'], local_path)
           submission_files[(student_submission.user_id, attempt_number)].append(local_path)
