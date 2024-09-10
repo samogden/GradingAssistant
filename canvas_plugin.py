@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import pprint
+import subprocess
 import tkinter as tk
 from typing import List
 
@@ -73,16 +74,32 @@ def parse_args():
   
   return args
 
-def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod: bool):
+def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod: bool, limit=None):
   with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
+    student_submissions = a.get_student_submissions(a.canvas_assignment, False)
+    if limit != None:
+      student_submissions = student_submissions[:limit]
+    submissions = a.download_submission_files(student_submissions)
+    submission_c_files = [os.path.basename(item) for sublist in submissions.values() for item in sublist if item.endswith(".c")]
     
+    log.debug(submission_c_files)
+    # command = ['ls', '-l', '-a']
     
-    # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
-    a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
-    if a.needs_grading:
-      a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
-    else:
-      log.info("No grading needed")
+    command = [
+      '/Users/ssogden/scripts/moss.pl',
+      '-l', "c"
+    ] + submission_c_files
+    
+    log.debug(f"command: {' '.join(command)}")
+    
+    # Run the process with the default environment
+    result = subprocess.run(command, cwd=a.working_dir, capture_output=True, text=True)
+    
+    # Print the output
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
+    print("Return Code:", result.returncode)
+    
 
 def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
@@ -94,14 +111,16 @@ def main():
   log.debug(f"args: {args}")
   
   if args.action == "MOSS":
-    run_moss_flow()
+    for assignment_name, assignment_id in args.assignments:
+      assignment_id = int(assignment_id)
+      run_moss_flow(args.course_id, assignment_id, assignment_name, args.prod, args.limit)
   else:
     
     log.debug(args.assignments)
     for assignment_name, assignment_id in args.assignments:
       assignment_id = int(assignment_id)
       log.debug(f"{assignment_name}, {assignment_id}")
-      with assignment.CanvasAssignment(args.course_id, assignment_id, args.prod) as a:
+      with assignment.CanvasProgrammingAssignment(args.course_id, assignment_id, args.prod) as a:
         # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
         a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
         if a.needs_grading:
