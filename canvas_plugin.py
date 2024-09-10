@@ -43,11 +43,12 @@ def GUI():
   
   canvas_assignment.get_tkinter_frame(root, grading_helper)
   root.mainloop()
-  
-def main():
-  # log.debug(os.environ.get("CANVAS_API_KEY"))
+
+
+def parse_args():
   
   parser = argparse.ArgumentParser()
+  
   parser.add_argument("--assignment", dest="assignments", action="append", nargs=2)
   
   parser.add_argument("--course_id", type=int, default=25068)
@@ -58,7 +59,28 @@ def main():
   parser.add_argument("--prod", action="store_true")
   parser.add_argument("--push", action="store_true")
   parser.add_argument("--limit", type=int)
-  args = parser.parse_args()
+  
+  
+  
+  subparsers = parser.add_subparsers(dest="action")
+  subparsers.add_parser("MOSS")
+  
+  args, remaining_args = parser.parse_known_args()
+  
+  # If there are remaining arguments (e.g., global flags after subcommands), reparse them
+  if remaining_args:
+    args = parser.parse_args(remaining_args, namespace=args)
+  
+  return args
+
+def main():
+  # log.debug(os.environ.get("CANVAS_API_KEY"))
+  
+  args = parse_args()
+  
+  
+  log.debug(f"args.action: {args.action}")
+  log.debug(f"args: {args}")
   
   log.debug(args.assignments)
   for assignment_name, assignment_id in args.assignments:
@@ -73,8 +95,6 @@ def main():
         log.info("No grading needed")
   return
   
-  
-  return
   
 if __name__ == "__main__":
   dotenv.load_dotenv()
