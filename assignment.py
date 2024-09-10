@@ -8,7 +8,9 @@ import os
 import pprint
 import shutil
 import tempfile
+import time
 import tkinter as tk
+import urllib
 from typing import List, Dict, Tuple
 
 import canvasapi
@@ -186,7 +188,64 @@ class QuestionLocation:
     return question_locations
 
 
-class CanvasQuiz(Assignment):
+class CanvasAssignment(Assignment):
+  canvas : canvasapi.Canvas = None
+  
+  def __init__(self, course_id : int, assignment_id : int, prod=False):
+    if self.__class__.canvas is None:
+      if prod:
+        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
+      else:
+        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+    
+    self.canvas_course = self.canvas.get_course(course_id)
+    self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
+    
+    self.working_dir = tempfile.mkdtemp()
+    
+    super().__init__([])
+  
+  def __enter__(self):
+    return self
+  
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    shutil.rmtree(self.working_dir)
+  
+  def get_student_submissions(self, canvas_assignment: canvasapi.assignment, only_include_latest=True) -> List[canvasapi.assignment.Submission]:
+    log.debug(f"get_student_submission({canvas_assignment}, {only_include_latest})")
+    
+    return list(self.canvas_assignment.get_submissions(include='submission_history'))
+  
+  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False):
+    log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
+    
+    # Set up the attachments directory
+    attachments_dir = self.working_dir
+    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
+    os.mkdir(attachments_dir)
+    
+    submission_files = collections.defaultdict(list)
+    
+    for student_submission in submissions:
+      if student_submission.missing:
+        # skip missing assignments
+        continue
+      log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
+      for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
+        log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
+        for attachment in submission_attempt['attachments']:
+          local_path = os.path.join(attachments_dir, f"student_{student_submission.user_id}_{attachment['id']}_{attachment['filename']}")
+          log.debug(f"Downloading {attachment['url']} to {local_path}")
+          urllib.request.urlretrieve(attachment['url'], local_path)
+          submission_files[(student_submission.user_id, attempt_number)].append(local_path)
+        if not download_all_variations:
+          continue
+        else:
+          # Add in a delay because it seems to crashing the API...
+          time.sleep(0.1)
+    return submission_files
+
+class CanvasQuiz(CanvasAssignment):
   def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course, all_submissions=False):
     # We want to grab responses and next them withing questions, which we then pass on to the super constructor
     
@@ -215,32 +274,7 @@ class CanvasQuiz(Assignment):
     ]
     
     super().__init__(questions)
-  
-  def get_student_submissions(self, canvas_assignment: canvasapi.assignment, only_include_latest=True) -> List[Tuple[int, canvasapi.assignment.Submission]]:
     
-    assignment_submissions = canvas_assignment.get_submissions(include='submission_history')
-    
-    student_submissions = []
-    for submission in assignment_submissions:
-      student_id = submission.user_id
-      log.debug(f"Parsing student: \"{student_id}\"")
-      try:
-        for student_submission in submission.submission_history:
-          student_submissions.append(
-            (
-              student_id,
-              student_submission["submission_data"]
-            )
-          )
-          if only_include_latest:
-            # todo: does it make sense to take element 0?  Is this always the most recent?
-            break
-      except KeyError:
-        continue
-        
-    return student_submissions
-  
-  
   def push_to_canvas(self, canvas_course : canvasapi.canvas.Course, canvas_quiz_id: int):
   
     
@@ -273,19 +307,10 @@ class CanvasQuiz(Assignment):
       ])
 
 
-class CanvasAssignment(Assignment):
-  # todo: Will this be a base class eventually?  Or should there be a canvas base class?  Can there be with that mess of an API....?
-  canvas : canvasapi.Canvas = None
+
+class CanvasProgrammingAssignment(CanvasAssignment):
   def __init__(self, course_id : int, assignment_id : int, prod=False):
-    if self.__class__.canvas is None:
-      if prod:
-        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
-      else:
-        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
-        
     # Set up canvas course information
-    self.canvas_course = self.canvas.get_course(course_id)
-    self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
     
     self.submission_files = collections.defaultdict(list)
     
@@ -294,36 +319,16 @@ class CanvasAssignment(Assignment):
     #   Although a per-function thing could in fact be submission based, but for right now I'm going
     #   to just declare them "the same but different" and assume I'm doing things semi-manually
     #   until I have time for a refactor
-    super().__init__([])
-    self.code_dir = tempfile.mkdtemp()
+    super().__init__(course_id, assignment_id, prod)
     self.needs_grading = True
   
-  def __enter__(self):
-    return self
-  
-  def __exit__(self, exc_type, exc_val, exc_tb):
-    shutil.rmtree(self.code_dir)
-  
-  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission]):
-    
-    attachments_dir = self.code_dir
-    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
-    os.mkdir(attachments_dir)
-    
-    for submission in submissions:
-      for attachment in submission.attachments:
-        # todo: I'm no longer tied to this naming scheme, so long as I change it in the other packages
-        local_path = os.path.join(attachments_dir, f"student_{submission.user_id}_{attachment.id}_{attachment}")
-        log.debug(f"Downloading {attachment} to {local_path}")
-        attachment.download(local_path)
-        self.submission_files[submission.user_id].append(local_path)
-    
-    
   
   def prepare_assignment_for_grading(self, limit=None, regrade=False):
     
     # Grab assignment contents
-    assignment_submissions : List[canvasapi.assignment.Submission] = self.canvas_assignment.get_submissions()
+    assignment_submissions : List[canvasapi.assignment.Submission] = self.get_student_submissions(self.canvas_assignment, True)
+    log.debug(f"# assignment_submissions: {len(assignment_submissions)}")
+    
     if regrade:
       ungraded_submissions = assignment_submissions
     else:
@@ -334,11 +339,13 @@ class CanvasAssignment(Assignment):
     
     self.needs_grading = len(list(ungraded_submissions)) != 0
     
-    self.download_submission_files(ungraded_submissions)
+    log.debug(f"# ungraded_submissions: {len(ungraded_submissions)}")
+    
+    self.submission_files = self.download_submission_files(ungraded_submissions)
     
   
   def grade(self, grader: grader_module.Grader, push_feedback=False):
-    for user_id, files in self.submission_files.items():
+    for (user_id, attempt_number), files in self.submission_files.items():
       log.debug(f"grading ({user_id}) : {files}")
       try:
         submission = self.canvas_assignment.get_submission(user_id)
