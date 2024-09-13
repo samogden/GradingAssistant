@@ -216,13 +216,15 @@ class CanvasAssignment(Assignment):
     
     return list(self.canvas_assignment.get_submissions(include='submission_history'))
   
-  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False):
+  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None):
     log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
     
-    # Set up the attachments directory
-    attachments_dir = self.working_dir
-    if os.path.exists(attachments_dir): shutil.rmtree(attachments_dir)
-    os.mkdir(attachments_dir)
+    # Set up the attachments directory if not passed in as an argument
+    if download_dir is None:
+      download_dir = self.working_dir
+      
+    if os.path.exists(download_dir): shutil.rmtree(download_dir)
+    os.mkdir(download_dir)
     
     submission_files = collections.defaultdict(list)
     
@@ -235,7 +237,7 @@ class CanvasAssignment(Assignment):
       for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
         log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
         for attachment in submission_attempt['attachments']:
-          local_path = os.path.join(attachments_dir, f"{student_name.name.replace(' ', '-')}_{attempt_number}_{attachment['filename']}")
+          local_path = os.path.join(download_dir, f"{student_name.name.replace(' ', '-')}_{attempt_number}_{attachment['filename']}")
           log.debug(f"Downloading {attachment['url']} to {local_path}")
           urllib.request.urlretrieve(attachment['url'], local_path)
           submission_files[(student_submission.user_id, attempt_number)].append(local_path)
