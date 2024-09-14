@@ -236,10 +236,18 @@ class CanvasAssignment(Assignment):
       log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
       for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
         log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
+        
+        # Download each attachment
         for attachment in submission_attempt['attachments']:
-          local_path = os.path.join(download_dir, f"{student_name.name.replace(' ', '-')}_{attempt_number}_{attachment['filename']}")
+          
+          # Generate a local file name with a number of options
+          local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{attachment['filename']}"
+          local_path = os.path.join(download_dir, local_file_name)
+          
           log.debug(f"Downloading {attachment['url']} to {local_path}")
           urllib.request.urlretrieve(attachment['url'], local_path)
+          
+          # Store the local filenames on a per-(student,attempt) basis
           submission_files[(student_submission.user_id, attempt_number)].append(local_path)
         if not download_all_variations:
           continue
