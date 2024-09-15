@@ -12,6 +12,10 @@ import random
 import re
 import typing
 
+import pandas as pd
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -107,10 +111,10 @@ class Submission():
     for question_number in rubric.keys():
       if self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number]):
         score = rubric[question_number]["points"]
-        feedback = f"Q{question_number}: "
+        feedback = f""
       else:
         score = 0.0
-        feedback = f"Q{question_number}: {rubric[question_number]['explanation']}"
+        feedback = f"{rubric[question_number]['explanation']}"
       self.results[question_number] = {
         "score" : score,
         "max_score" : rubric[question_number]["points"],
@@ -163,10 +167,30 @@ class AssignmentFromRubric():
           return ''.join(match.groups()) #f"{match.group(1)}"
       return None
     
-    def grade_submissions(self):
-      if self.type == "manual": return
+    def grade_submissions(self) -> pd.DataFrame:
+      if self.type == "manual": return pd.DataFrame()
+      overall_results = []
       for s in self.submissions:
         s.generate_results(self.rubric)
+        submission_results = s.results
+        for q_number, q_results in submission_results.items():
+          q_results["assignment_part"] = self.id
+          q_results["assignment_part_name"] = self.name
+          q_results["user_id"] = s.user_id
+          q_results["q_number"] = q_number
+          overall_results.append(q_results)
+      df = pd.DataFrame(overall_results,
+        columns=[
+          "assignment_part",
+          "assignment_part_name",
+          "user_id",
+          "q_number",
+          "max_score",
+          "score",
+          "feedback"
+        ]
+      )
+      return df
     
     
     @classmethod
@@ -198,6 +222,15 @@ class AssignmentFromRubric():
       
       assignment_part_from_rubric.update_regexes()
       return assignment_part_from_rubric
+    
+    def save_scores(self, df: typing.Optional[pd.DataFrame] = None, working_dir=None):
+      filename = f"scores.{self.id}.csv"
+      if working_dir is not None:
+        filename = os.path.join(working_dir, filename)
+        
+      if df is None:
+        df : pd.DataFrame = self.grade_submissions()
+      df.to_csv(filename)
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -274,9 +307,9 @@ def main():
   
   
   for (weight, part) in a.parts:
-    part.grade_submissions()
-    for s in part.submissions:
-      log.debug(f"{s.results}")
+    results_df = part.grade_submissions()
+    print(results_df)
+    part.save_scores(results_df, working_dir=grading_base)
   
   
   if len(unsorted) > 0:
