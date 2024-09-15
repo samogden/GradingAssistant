@@ -168,17 +168,32 @@ class AssignmentFromRubric():
       return None
     
     def grade_submissions(self) -> pd.DataFrame:
-      if self.type == "manual": return pd.DataFrame()
       overall_results = []
       for s in self.submissions:
-        s.generate_results(self.rubric)
-        submission_results = s.results
-        for q_number, q_results in submission_results.items():
-          q_results["assignment_part"] = self.id
-          q_results["assignment_part_name"] = self.name
-          q_results["user_id"] = s.user_id
-          q_results["q_number"] = q_number
-          overall_results.append(q_results)
+      
+        if self.type == "manual":
+          log.debug(self.rubric)
+          overall_results.extend([
+            {
+              "q_number": q_number,
+              "assignment_part" : self.id,
+              "assignment_part_name" : self.name,
+              "user_id" : s.user_id,
+              "max_score" : self.rubric[q_number]
+            }
+            for q_number in self.rubric
+          ])
+        else:
+          s.generate_results(self.rubric)
+          submission_results = s.results
+          
+          for q_number, q_results in submission_results.items():
+            q_results["assignment_part"] = self.id
+            q_results["assignment_part_name"] = self.name
+            q_results["user_id"] = s.user_id
+            q_results["q_number"] = q_number
+            overall_results.append(q_results)
+          
       df = pd.DataFrame(overall_results,
         columns=[
           "assignment_part",
