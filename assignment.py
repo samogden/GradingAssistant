@@ -216,15 +216,17 @@ class CanvasAssignment(Assignment):
     
     return list(self.canvas_assignment.get_submissions(include='submission_history'))
   
-  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None):
+  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None, overwrite=False)\
+      -> Dict[Tuple[int, int],List[str]]:
     log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
     
     # Set up the attachments directory if not passed in as an argument
     if download_dir is None:
       download_dir = self.working_dir
-      
-    if os.path.exists(download_dir): shutil.rmtree(download_dir)
-    os.mkdir(download_dir)
+    
+    if overwrite:
+      if os.path.exists(download_dir): shutil.rmtree(download_dir)
+      os.mkdir(download_dir)
     
     submission_files = collections.defaultdict(list)
     
@@ -241,20 +243,21 @@ class CanvasAssignment(Assignment):
         for attachment in submission_attempt['attachments']:
           
           # Generate a local file name with a number of options
-          local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{attachment['filename']}"
+          local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{student_submission.user_id}_{attachment['filename']}"
           local_path = os.path.join(download_dir, local_file_name)
           
-          log.debug(f"Downloading {attachment['url']} to {local_path}")
-          urllib.request.urlretrieve(attachment['url'], local_path)
+          if overwrite or not os.path.exists(local_path):
+            log.debug(f"Downloading {attachment['url']} to {local_path}")
+            urllib.request.urlretrieve(attachment['url'], local_path)
+            time.sleep(0.1)
+          else:
+            log.debug(f"{local_path} already exists")
           
           # Store the local filenames on a per-(student,attempt) basis
           submission_files[(student_submission.user_id, attempt_number)].append(local_path)
         if not download_all_variations:
           continue
-        else:
-          # Add in a delay because it seems to crashing the API...
-          time.sleep(0.1)
-    return submission_files
+    return dict(submission_files)
 
 class CanvasQuiz(CanvasAssignment):
   def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course, all_submissions=False):

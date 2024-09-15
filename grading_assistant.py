@@ -100,7 +100,7 @@ def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod
   
 def run_semi_manual_flow(course_id: int, assignment_id: int, prod: bool, limit=None):
   with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
-    student_submissions = a.get_student_submissions(a.canvas_assignment, False)
+    student_submissions = a.get_student_submissions(a.canvas_assignment, True)
     if limit != None:
       student_submissions = student_submissions[:limit]
     submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"))
