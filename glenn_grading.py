@@ -1,6 +1,7 @@
 #!env python
 from __future__ import annotations
 
+import argparse
 import itertools
 import json
 import os.path
@@ -12,7 +13,11 @@ import random
 import re
 import typing
 
+import dotenv
 import pandas as pd
+
+import assignment
+
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
 
@@ -304,17 +309,91 @@ class AssignmentFromRubric():
     return unsorted
   
 
+def generate_CSVs(a: AssignmentFromRubric, student_submissions : typing.List[Submission], working_dir):
+  unsorted = a.sort_files(student_submissions)
+  
+  for (weight, part) in a.parts:
+    results_df = part.grade_submissions()
+    print(results_df)
+    part.save_scores(results_df, working_dir=working_dir)
+  
+  
+  if len(unsorted) > 0:
+    log.error(f"REMEMBER: THERE ARE {len(unsorted)} UNSORTED SUBMISSIONS")
+    exit(127)
+
+def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
+  pass
+
+def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
+  with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
+    student_submissions = a.get_student_submissions(a.canvas_assignment, True)
+    if limit != None:
+      student_submissions = student_submissions[:limit]
+    submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"), overwrite=False, download_all_variations=False)
+  
+  assignment_submissions = []
+  for (user_id, _), list_of_files in submissions.items():
+    assignment_submissions.extend([
+      Submission(user_id, path_to_file)
+      for path_to_file in list_of_files
+    ])
+  
+  return assignment_submissions
+
+
+def parse_args():
+  
+  parser = argparse.ArgumentParser()
+  
+  parser.add_argument("--assignment", dest="assignments", action="append", nargs=2)
+  
+  parser.add_argument("--course_id", type=int, default=25671)
+  parser.add_argument("--assignment_id", type=int, default=402682)
+  parser.add_argument("--push", action="store_true")
+  parser.add_argument("--limit", type=int)
+  parser.add_argument("--working_dir", default=None)
+  
+  subparsers = parser.add_subparsers(dest="action")
+  subparsers.add_parser("GENERATE")
+  subparsers.add_parser("COMBINE")
+  
+  args, remaining_args = parser.parse_known_args()
+  
+  if args.working_dir is None:
+    args.working_dir = os.getcwd()
+  
+  # If there are remaining arguments (e.g., global flags after subcommands), reparse them
+  if remaining_args:
+    args = parser.parse_args(remaining_args, namespace=args)
+  
+  return args
+
+
 def main():
+  args = parse_args()
+  
   grading_base = "/Users/ssogden/scratch/grading"
   student_files_dir = os.path.join(grading_base, "files")
   assignment_files_dir = os.path.join(grading_base, "hw2-lin-alg-pca")
+  
+  a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
+  
+  if args.action == "GENERATE":
+    student_submissions = get_submissions(args.course_id, args.assignment_id, True, limit=args.limit)
+    # student_submissions = Submission.load_submissions(student_files_dir)
+    generate_CSVs(a, student_submissions, args.working_dir)
+  elif args.action == "COMBINE":
+    pass
+    
+  return
+  
   
   # rubric_files = find_rubrics(assignment_files_dir)
   # parse_rubrics(rubric_files)
   
   a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
   
-  student_submissions = Submission.load_submissions(student_files_dir)
   
   unsorted = a.sort_files(student_submissions)
 
@@ -334,4 +413,5 @@ def main():
 
 
 if __name__ == "__main__":
+  dotenv.load_dotenv()
   main()
