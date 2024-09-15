@@ -194,8 +194,10 @@ class CanvasAssignment(Assignment):
   def __init__(self, course_id : int, assignment_id : int, prod=False):
     if self.__class__.canvas is None:
       if prod:
+        log.debug("Using canvas PROD")
         self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
       else:
+        log.debug("Using canvas DEV")
         self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
     
     self.canvas_course = self.canvas.get_course(course_id)
@@ -258,6 +260,32 @@ class CanvasAssignment(Assignment):
         if not download_all_variations:
           continue
     return dict(submission_files)
+  
+  def push_feedback(self, user_id, score, feedback_text):
+    log.debug(f"Adding feedback for {user_id}")
+    try:
+      submission = self.canvas_assignment.get_submission(user_id)
+    except requests.exceptions.ConnectionError as e:
+      log.error(e)
+      log.debug(f"Failed on user_id = {user_id})")
+      log.debug(f"username: {self.canvas_course.get_user(user_id)}")
+      return
+    
+    # todo: combine all of this somehow more elegantly
+    with io.FileIO("feedback.txt", 'w+') as ffid:
+      ffid.write(feedback_text.encode('utf-8'))
+      ffid.flush()
+      ffid.seek(0)
+      submission.upload_comment(ffid)
+    os.remove("feedback.txt")
+    
+    # Push feedback to canvas
+    submission.edit(
+      submission={
+        'posted_grade':score,
+      },
+    )
+
 
 class CanvasQuiz(CanvasAssignment):
   def __init__(self, quiz: canvasapi.quiz.Quiz, course: canvasapi.canvas.Course, all_submissions=False):
@@ -356,7 +384,6 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     log.debug(f"# ungraded_submissions: {len(ungraded_submissions)}")
     
     self.submission_files = self.download_submission_files(ungraded_submissions)
-    
   
   def grade(self, grader: grader_module.Grader, push_feedback=False):
     for (user_id, attempt_number), files in self.submission_files.items():
@@ -371,30 +398,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
       
       # Grade submission
       feedback: misc.Feedback = grader.grade_assignment(input_files=files)
-      # log.debug(f"feedback: {feedback}")
-      # log.debug(f"overall_feedback: \n{feedback.overall_feedback}")
       
-      # log.debug(f"Preparing feedback for: {user_id}")
-      
-      # todo: combine all of this somehow more elegantly
-      with io.FileIO("feedback.txt", 'w+') as ffid:
-        ffid.write(feedback.overall_feedback.encode('utf-8'))
-        ffid.flush()
-        ffid.seek(0)
-        if push_feedback:
-          submission.upload_comment(ffid)
-      if push_feedback:
-        os.remove("feedback.txt")
-      
-      # Push feedback to canvas
-      if push_feedback:
-        submission.edit(
-          submission={
-            'posted_grade':feedback.overall_score,
-          },
-          # comment={
-          #   'text_comment': feedback.overall_feedback
-          # }
-        )
+      self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
       
     
