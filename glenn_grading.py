@@ -250,7 +250,7 @@ class AssignmentFromRubric():
         
       if df is None:
         df : pd.DataFrame = self.grade_submissions()
-      df.to_csv(filename)
+      df.to_csv(filename, index=False)
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -323,7 +323,44 @@ def generate_CSVs(a: AssignmentFromRubric, student_submissions : typing.List[Sub
     exit(127)
 
 def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
-  pass
+  df_by_assignment = {}
+  for df in [pd.read_csv(csv) for csv in csvs]:
+    df["feedback"] = df["feedback"].fillna('')
+    df_by_assignment[df["assignment_part"].iloc[0]] = df.groupby("user_id").agg({
+      'score' : 'sum',
+      'max_score' : 'sum',
+      'feedback' : lambda s: [f"Q{i+1}: {f}" for i, f in enumerate(s.tolist()) if len(f) > 0]
+    })
+  
+  
+  user_ids = pd.concat([pd.Series(df.index) for df in df_by_assignment.values()]).unique()
+  log.debug(user_ids)
+  
+  for user_id in user_ids:
+    log.debug(f"Generating score and feedback for {user_id}")
+    overall_score = 0.0
+    overall_feedback = ""
+    for weight, assignment_part in a.parts:
+      percentage_score = 0.0
+      try:
+        row = df_by_assignment[assignment_part.id].loc[user_id]
+        percentage_score = row["score"] / row["max_score"]
+        if len(row["feedback"]) > 0:
+          overall_feedback += f"Feedback for: {assignment_part.name}"
+          overall_feedback += "\n  - " + '\n  - '.join(row["feedback"])
+          overall_feedback += "\n\n"
+      except KeyError:
+        log.warning(f"No entry for {user_id} in {assignment_part.name}")
+        overall_feedback += f"{assignment_part.name} is missing"
+        overall_feedback += "\n\n"
+      overall_score += percentage_score * weight
+    
+    log.debug(f"overall_score: {overall_score}")
+    log.debug(f"overall_feedback: {overall_feedback}")
+
+
+
+
 
 def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
   with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
@@ -354,6 +391,8 @@ def parse_args():
   parser.add_argument("--limit", type=int)
   parser.add_argument("--working_dir", default=None)
   
+  parser.add_argument("--csvs", nargs='+', default=[])
+  
   subparsers = parser.add_subparsers(dest="action")
   subparsers.add_parser("GENERATE")
   subparsers.add_parser("COMBINE")
@@ -381,36 +420,12 @@ def main():
   
   if args.action == "GENERATE":
     student_submissions = get_submissions(args.course_id, args.assignment_id, True, limit=args.limit)
-    # student_submissions = Submission.load_submissions(student_files_dir)
     generate_CSVs(a, student_submissions, args.working_dir)
   elif args.action == "COMBINE":
-    pass
+    combine_CSVs(a, args.csvs)
     
   return
   
-  
-  # rubric_files = find_rubrics(assignment_files_dir)
-  # parse_rubrics(rubric_files)
-  
-  a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
-  
-  
-  unsorted = a.sort_files(student_submissions)
-
-  a.describe()
-  
-  
-  for (weight, part) in a.parts:
-    results_df = part.grade_submissions()
-    print(results_df)
-    part.save_scores(results_df, working_dir=grading_base)
-  
-  
-  if len(unsorted) > 0:
-    log.error(f"REMEMBER: THERE ARE {len(unsorted)} UNSORTED SUBMISSIONS")
-    exit(127)
-  
-
 
 if __name__ == "__main__":
   dotenv.load_dotenv()
