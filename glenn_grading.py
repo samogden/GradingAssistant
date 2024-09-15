@@ -20,7 +20,7 @@ class Submission():
   def __init__(self, user_id, path_to_file):
     self.user_id = user_id
     self.path_to_file = path_to_file
-    self.grade = 0.0
+    self.percentage_grade = 0.0
     
   def parse_submission(self,
       line_combination_function : typing.Optional[typing.Callable[[typing.List[str]],str]] = None
@@ -111,9 +111,9 @@ class Submission():
       else:
         pass
         # log.debug(f"question {question_number}: {rubric[question_number]['key']} <-> {submission_contents[question_number]} --> {self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number])}")
-    percentage_score = score / max_score
-    log.debug(f"score ({self.path_to_file}): {100.0 * percentage_score: 0.1f}")
-    return percentage_score
+    self.percentage_grade = score / max_score
+    log.debug(f"score ({self.path_to_file}): {100.0 * self.percentage_grade: 0.1f}")
+    return self.percentage_grade
   
   @classmethod
   def load_submissions(cls, path_to_submissions) -> typing.List[Submission]:
