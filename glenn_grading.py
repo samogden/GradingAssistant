@@ -1,12 +1,14 @@
 #!env python
 from __future__ import annotations
 
+import itertools
 import json
 import os.path
 import pathlib
 
 import logging
 import pprint
+import random
 import re
 import typing
 
@@ -18,6 +20,107 @@ class Submission():
   def __init__(self, user_id, path_to_file):
     self.user_id = user_id
     self.path_to_file = path_to_file
+    self.grade = 0.0
+    
+  def parse_submission(self,
+      line_combination_function : typing.Optional[typing.Callable[[typing.List[str]],str]] = None
+  ) -> typing.Dict[int,str]:
+    """
+    
+    Reads in the submission line-by-line, spliting when it recognizes the sequence that denotes a new answer.
+    Uses the provided function, line_combination_function, to combine multiple student input lines from a list of individual lines
+    :param line_combination_function:
+    :return:
+    """
+    
+    if line_combination_function is None:
+      # A function to strip all of the lines to ensure empty lines are empty and then combine them all with newlines
+      line_combination_function = (
+        lambda lines:
+        '\n'.join(
+          filter(
+            lambda s: len(s) > 0,
+            map(
+              lambda l: l.strip(),
+              lines
+            )
+          )
+        )
+      )
+    
+    with open(self.path_to_file) as fid:
+      lines = [l.strip() for l in fid.readlines()]
+    question_line_regex = re.compile(r'^#@ (\d+).*$')
+    
+    responses = {}
+    question_number = None
+    student_response_lines = []
+    current_line_index = 0
+    while current_line_index < len(lines):
+      line = lines[current_line_index]
+      # Check to see if the current line starts a question
+      match = re.match(question_line_regex, line)
+      if match:
+        # Then we are starting a new question
+        if question_number is None:
+          # Then this is actually the first question and we should probably skip it
+          pass
+        else:
+          # Then we are in an existing question
+          responses[question_number] = line_combination_function(student_response_lines)
+        # Prepare for the next question
+        question_number = match.group(1)
+        student_response_lines = []
+      else:
+        student_response_lines.append(line)
+      current_line_index += 1
+    responses[question_number] = line_combination_function(student_response_lines)
+    
+    return responses
+  
+  @staticmethod
+  def __compare_answers(a1, a2):
+    def convert_to_float_or_nan(s):
+      try:
+        return float(s)
+      except:
+        return float('nan')
+    
+    cleaning_operations = [
+      (lambda s: s), # Leave as it is (this is technically a subcase of the other two but whatever)
+      (lambda s: s.lower()), # make everything lowercase
+      (lambda s: ''.join(s.split(' '))), # remove all spaces
+      (lambda s: convert_to_float_or_nan(s)) # Convert all to floats, if possible.  Note two NaNs are different
+    ]
+    
+    # Now the tricky part.  I want to apply all cleaning operation to all of the inputs and see if any combinations match
+    operation_combinations = itertools.product(cleaning_operations, repeat=2)
+    return any(
+      [ op1(a1) == op2(a2) for op1, op2 in operation_combinations]
+    )
+
+
+  def calculate_grade(self, rubric: typing.Dict):
+    submission_contents = self.parse_submission()
+    score = 0.0
+    max_score = 0.0
+    for question_number in rubric.keys():
+      max_score += rubric[question_number]["points"]
+      if self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number]):
+        score += rubric[question_number]["points"]
+      else:
+        pass
+        # log.debug(f"question {question_number}: {rubric[question_number]['key']} <-> {submission_contents[question_number]} --> {self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number])}")
+    percentage_score = score / max_score
+    log.debug(f"score ({self.path_to_file}): {100.0 * percentage_score: 0.1f}")
+    return percentage_score
+  
+  @classmethod
+  def load_submissions(cls, path_to_submissions) -> typing.List[Submission]:
+    submissions = []
+    for i, f in enumerate([os.path.join(path_to_submissions, f) for f in os.listdir(path_to_submissions)]):
+      submissions.append(cls(i, f))
+    return submissions
 
 class AssignmentFromRubric():
   # Has parts and values per part
@@ -25,6 +128,7 @@ class AssignmentFromRubric():
     # Has file, identifier (maybe), long name, and problems, and rubric
     def __init__(self, *args, **kwargs):
       super().__init__(*args, **kwargs)
+      self.submissions : typing.List[Submission] = []
       
       self.files = []
       self.id = None
@@ -57,6 +161,11 @@ class AssignmentFromRubric():
           return ''.join(match.groups()) #f"{match.group(1)}"
       return None
     
+    def grade_submissions(self):
+      if self.type == "manual": return
+      for s in self.submissions:
+        s.calculate_grade(self.rubric)
+    
     
     @classmethod
     def build_from_rubric_json(cls, path_to_rubric) -> AssignmentFromRubric.AssignmentPart:
@@ -65,7 +174,6 @@ class AssignmentFromRubric():
     
       with open(path_to_rubric) as fid:
         rubric = json.load(fid)
-      log.debug(f"rubric: {pprint.pformat(rubric)}")
       
       assignment_part_from_rubric.files = []
       if "files" in rubric:
@@ -124,16 +232,27 @@ class AssignmentFromRubric():
   
   def describe(self):
     for value, part in self.parts:
-      print(f"{value} points : {part.files} : {pprint.pformat(part.rubric)}")
+      print(f"{value} points : {part.files} : {len(part.submissions)}")
     
-  def sort_files(self, files_to_sort):
-    for f in files_to_sort:
-      log.debug(f"Checking {f}")
+  def sort_files(self, submissions_to_sort : typing.List[Submission]):
+    unsorted = []
+    for s in submissions_to_sort:
+      found_placement = False
       for (_, p) in self.parts:
-        new_file_name = p.does_file_belong_to(f)
+        new_file_name = p.does_file_belong_to(s.path_to_file)
+        # If the previous returned something besides None, then we know it belongs to it
         if new_file_name:
-          log.debug(f"{p} : {new_file_name}")
-      log.debug("")
+          p.submissions.append(s)
+          found_placement = True
+          continue
+      if not found_placement:
+        unsorted.append(s)
+    log.info(f"There are {len(unsorted)} unsorted submissions")
+    if len(unsorted) > 0:
+      for u in unsorted:
+        log.info(f"{u.path_to_file}")
+    return unsorted
+  
 
 def main():
   grading_base = "/Users/ssogden/scratch/grading"
@@ -145,10 +264,20 @@ def main():
   
   a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
   
-  student_files = os.listdir(student_files_dir)
+  student_submissions = Submission.load_submissions(student_files_dir)
   
-  a.sort_files(student_files)
+  unsorted = a.sort_files(student_submissions)
 
+  a.describe()
+  
+  
+  for (weight, part) in a.parts:
+    part.grade_submissions()
+  
+  
+  if len(unsorted) > 0:
+    log.error(f"REMEMBER: THERE ARE {len(unsorted)} UNSORTED SUBMISSIONS")
+    exit(127)
   
 
 
