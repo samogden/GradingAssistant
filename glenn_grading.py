@@ -13,6 +13,7 @@ import random
 import re
 import typing
 
+import canvasapi
 import dotenv
 import pandas as pd
 
@@ -336,6 +337,10 @@ def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
   user_ids = pd.concat([pd.Series(df.index) for df in df_by_assignment.values()]).unique()
   log.debug(user_ids)
   
+  
+  # todo: these variables are poorly named
+  
+  feedback = []
   for user_id in user_ids:
     log.debug(f"Generating score and feedback for {user_id}")
     overall_score = 0.0
@@ -357,7 +362,13 @@ def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
     
     log.debug(f"overall_score: {overall_score}")
     log.debug(f"overall_feedback: {overall_feedback}")
-
+    feedback.append({
+      "user_id" : user_id,
+      "score" : overall_score,
+      "feedback" : overall_feedback
+    })
+  return feedback
+  
 
 
 
@@ -377,6 +388,16 @@ def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
     ])
   
   return assignment_submissions
+
+def submit_feedback(course_id: int, assignment_id: int, prod: bool, feedback: typing.List[typing.Dict], limit=None):
+  log.debug(assignment.CanvasAssignment.canvas)
+  with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
+    for grading_response in feedback:
+      a.push_feedback(
+        grading_response["user_id"],
+        grading_response["score"],
+        grading_response["feedback"]
+      )
 
 
 def parse_args():
@@ -419,14 +440,17 @@ def main():
   a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
   
   if args.action == "GENERATE":
-    student_submissions = get_submissions(args.course_id, args.assignment_id, True, limit=args.limit)
+    student_submissions = get_submissions(args.course_id, args.assignment_id, False, limit=args.limit)
     generate_CSVs(a, student_submissions, args.working_dir)
   elif args.action == "COMBINE":
-    combine_CSVs(a, args.csvs)
+    feedback = combine_CSVs(a, args.csvs)
+    submit_feedback(args.course_id, args.assignment_id, False, feedback, limit=args.limit)
     
   return
   
 
 if __name__ == "__main__":
   dotenv.load_dotenv()
+  log.debug(pprint.pformat(os.environ.__dict__))
+  # exit()
   main()
