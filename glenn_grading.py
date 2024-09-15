@@ -20,7 +20,9 @@ class Submission():
   def __init__(self, user_id, path_to_file):
     self.user_id = user_id
     self.path_to_file = path_to_file
-    self.percentage_grade = 0.0
+    
+    # Results dictionary that will be by question number and contain columns score, max_score, feedback
+    self.results : typing.Dict[str, typing.Dict] = {}
     
   def parse_submission(self,
       line_combination_function : typing.Optional[typing.Callable[[typing.List[str]],str]] = None
@@ -99,22 +101,22 @@ class Submission():
       [ op1(a1) == op2(a2) for op1, op2 in operation_combinations]
     )
 
-
-  def calculate_grade(self, rubric: typing.Dict):
+  def generate_results(self, rubric: typing.Dict):
     submission_contents = self.parse_submission()
-    score = 0.0
-    max_score = 0.0
+    
     for question_number in rubric.keys():
-      max_score += rubric[question_number]["points"]
       if self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number]):
-        score += rubric[question_number]["points"]
+        score = rubric[question_number]["points"]
+        feedback = f"Q{question_number}: "
       else:
-        pass
-        # log.debug(f"question {question_number}: {rubric[question_number]['key']} <-> {submission_contents[question_number]} --> {self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number])}")
-    self.percentage_grade = score / max_score
-    log.debug(f"score ({self.path_to_file}): {100.0 * self.percentage_grade: 0.1f}")
-    return self.percentage_grade
-  
+        score = 0.0
+        feedback = f"Q{question_number}: {rubric[question_number]['explanation']}"
+      self.results[question_number] = {
+        "score" : score,
+        "max_score" : rubric[question_number]["points"],
+        "feedback": feedback
+      }
+      
   @classmethod
   def load_submissions(cls, path_to_submissions) -> typing.List[Submission]:
     submissions = []
@@ -164,7 +166,7 @@ class AssignmentFromRubric():
     def grade_submissions(self):
       if self.type == "manual": return
       for s in self.submissions:
-        s.calculate_grade(self.rubric)
+        s.generate_results(self.rubric)
     
     
     @classmethod
@@ -273,6 +275,8 @@ def main():
   
   for (weight, part) in a.parts:
     part.grade_submissions()
+    for s in part.submissions:
+      log.debug(f"{s.results}")
   
   
   if len(unsorted) > 0:
