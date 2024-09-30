@@ -11,6 +11,7 @@ import logging
 import pprint
 import random
 import re
+import subprocess
 import typing
 
 import canvasapi
@@ -19,6 +20,9 @@ import pandas as pd
 
 import assignment
 
+from flask import Flask, render_template, redirect, url_for
+
+# Setting up a flask server
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
 
@@ -27,8 +31,9 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 class Submission():
-  def __init__(self, user_id, path_to_file):
+  def __init__(self, user_id, user_name, path_to_file):
     self.user_id = user_id
+    self.user_name = user_name
     self.path_to_file = path_to_file
     
     # Results dictionary that will be by question number and contain columns score, max_score, feedback
@@ -145,7 +150,6 @@ class AssignmentFromRubric():
       self.files = []
       self.id = None
       self.name = None
-      self.name = None
       self.rubric = None
       self.type = None
       
@@ -185,6 +189,7 @@ class AssignmentFromRubric():
               "assignment_part" : self.id,
               "assignment_part_name" : self.name,
               "user_id" : s.user_id,
+              "user_name": s.user_name,
               "max_score" : self.rubric[q_number]
             }
             for q_number in self.rubric
@@ -197,6 +202,7 @@ class AssignmentFromRubric():
             q_results["assignment_part"] = self.id
             q_results["assignment_part_name"] = self.name
             q_results["user_id"] = s.user_id
+            q_results["user_name"] = s.user_name
             q_results["q_number"] = q_number
             overall_results.append(q_results)
           
@@ -205,12 +211,15 @@ class AssignmentFromRubric():
           "assignment_part",
           "assignment_part_name",
           "user_id",
+          "user_name",
           "q_number",
           "max_score",
           "score",
           "feedback"
         ]
       )
+    
+      df["feedback"] = df["feedback"].fillna('')
       return df
     
     
@@ -308,7 +317,17 @@ class AssignmentFromRubric():
       for u in unsorted:
         log.info(f"{u.path_to_file}")
     return unsorted
+
+
+def generate_DFs_by_assignment(a: AssignmentFromRubric, student_submissions : typing.List[Submission], working_dir):
+  unsorted = a.sort_files(student_submissions)
   
+  dfs_by_assignment = {}
+  for (weight, part) in a.parts:
+    dfs_by_assignment[part.id] = part.grade_submissions()
+    
+  return dfs_by_assignment
+
 
 def generate_CSVs(a: AssignmentFromRubric, student_submissions : typing.List[Submission], working_dir):
   unsorted = a.sort_files(student_submissions)
@@ -318,12 +337,61 @@ def generate_CSVs(a: AssignmentFromRubric, student_submissions : typing.List[Sub
     print(results_df)
     part.save_scores(results_df, working_dir=working_dir)
   
-  
   if len(unsorted) > 0:
     log.error(f"REMEMBER: THERE ARE {len(unsorted)} UNSORTED SUBMISSIONS")
     exit(127)
 
-def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
+def read_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
+  df_by_assignment = {}
+  for df in [pd.read_csv(csv) for csv in csvs]:
+    df["feedback"] = df["feedback"].fillna('')
+    df_by_assignment[df["assignment_part"].iloc[0]] = df.groupby("user_id").agg({
+      'score' : 'sum',
+      'max_score' : 'sum',
+      'feedback' : lambda s: [f"Q{i+1}: {f}" for i, f in enumerate(s.tolist()) if len(f) > 0]
+    })
+  
+  return df_by_assignment
+
+
+def combine_DFs_into_feedback(a: AssignmentFromRubric, df_by_assignment : typing.Dict[pd.DataFrame]):
+  user_ids = pd.concat([pd.Series(df.index) for df in df_by_assignment.values()]).unique()
+  log.debug(user_ids)
+   # todo: fix these variable names to make them less stupid
+  feedback = []
+  for user_id in user_ids:
+    log.debug(f"Generating score and feedback for {user_id}")
+    overall_score = 0.0
+    overall_feedback = ""
+    for weight, assignment_part in a.parts:
+      percentage_score = 0.0
+      try:
+        row = df_by_assignment[assignment_part.id].loc[user_id]
+        percentage_score = row["score"] / row["max_score"]
+        if len(row["feedback"]) > 0:
+          overall_feedback += f"Feedback for: {assignment_part.name}"
+          if isinstance(row["feedback"], str):
+            overall_feedback += "\n  - " +row["feedback"]
+          else:
+            overall_feedback += "\n  - " + '\n  - '.join(row["feedback"])
+          overall_feedback += "\n\n"
+      except KeyError:
+        log.warning(f"No entry for {user_id} in {assignment_part.name}")
+        overall_feedback += f"{assignment_part.name} is missing"
+        overall_feedback += "\n\n"
+      overall_score += percentage_score * weight
+    
+    log.debug(f"overall_score: {overall_score}")
+    log.debug(f"overall_feedback: {overall_feedback}")
+    feedback.append({
+      "user_id" : user_id,
+      "score" : overall_score,
+      "feedback" : overall_feedback
+    })
+  return feedback
+
+
+def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str], fudge : float = 0.0):
   df_by_assignment = {}
   for df in [pd.read_csv(csv) for csv in csvs]:
     df["feedback"] = df["feedback"].fillna('')
@@ -343,7 +411,7 @@ def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
   feedback = []
   for user_id in user_ids:
     log.debug(f"Generating score and feedback for {user_id}")
-    overall_score = 0.0
+    overall_score = fudge
     overall_feedback = ""
     for weight, assignment_part in a.parts:
       percentage_score = 0.0
@@ -368,10 +436,6 @@ def combine_CSVs(a: AssignmentFromRubric, csvs : typing.List[str]):
       "feedback" : overall_feedback
     })
   return feedback
-  
-
-
-
 
 def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
   with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
@@ -381,9 +445,9 @@ def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
     submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"), overwrite=False, download_all_variations=False)
   
   assignment_submissions = []
-  for (user_id, _), list_of_files in submissions.items():
+  for (user_id, _, user_name), list_of_files in submissions.items():
     assignment_submissions.extend([
-      Submission(user_id, path_to_file)
+      Submission(user_id, user_name, path_to_file)
       for path_to_file in list_of_files
     ])
   
@@ -409,8 +473,11 @@ def parse_args():
   parser.add_argument("--course_id", type=int, default=25671)
   parser.add_argument("--assignment_id", type=int, default=402682)
   parser.add_argument("--push", action="store_true")
+  parser.add_argument("--prod", action="store_true")
   parser.add_argument("--limit", type=int)
   parser.add_argument("--working_dir", default=None)
+  parser.add_argument("--fudge", type=float, default=0.0, help="Add a small amount to every score to fix some weirdness in grading")
+  parser.add_argument("--base_dir", required=True)
   
   parser.add_argument("--csvs", nargs='+', default=[])
   
@@ -433,18 +500,18 @@ def parse_args():
 def main():
   args = parse_args()
   
-  grading_base = "/Users/ssogden/scratch/grading"
+  grading_base = os.getcwd() #"/Users/ssogden/scratch/grading"
   student_files_dir = os.path.join(grading_base, "files")
-  assignment_files_dir = os.path.join(grading_base, "hw2-lin-alg-pca")
+  assignment_files_dir = os.path.join(grading_base, args.base_dir)
   
   a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
   
   if args.action == "GENERATE":
-    student_submissions = get_submissions(args.course_id, args.assignment_id, False, limit=args.limit)
+    student_submissions = get_submissions(args.course_id, args.assignment_id, args.prod, limit=args.limit)
     generate_CSVs(a, student_submissions, args.working_dir)
   elif args.action == "COMBINE":
-    feedback = combine_CSVs(a, args.csvs)
-    submit_feedback(args.course_id, args.assignment_id, False, feedback, limit=args.limit)
+    feedback = combine_CSVs(a, args.csvs, args.fudge)
+    submit_feedback(args.course_id, args.assignment_id, args.prod, feedback, limit=args.limit)
     
   return
   
