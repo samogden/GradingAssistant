@@ -112,9 +112,17 @@ class Submission():
     
     # Now the tricky part.  I want to apply all cleaning operation to all of the inputs and see if any combinations match
     operation_combinations = itertools.product(cleaning_operations, repeat=2)
-    return any(
-      [ op1(a1) == op2(a2) for op1, op2 in operation_combinations]
-    )
+    log.debug(f"a1 : {a1}")
+    log.debug(f"a2 : {a2}")
+    for op1, op2 in operation_combinations:
+      try:
+        if op1(a1) == op2(a2):
+          return True
+      except AttributeError:
+        pass
+    if a2 in a1:
+      return True
+    return False
 
   def generate_results(self, rubric: typing.Dict):
     submission_contents = self.parse_submission()
@@ -442,10 +450,11 @@ def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
     student_submissions = a.get_student_submissions(a.canvas_assignment, True)
     if limit != None:
       student_submissions = student_submissions[:limit]
+    log.debug(f"Asking to download to: {os.path.join(os.getcwd(), 'files')}")
     submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"), overwrite=False, download_all_variations=False)
   
   assignment_submissions = []
-  for (user_id, _, user_name), list_of_files in submissions.items():
+  for (user_id, user_name), list_of_files in submissions.items():
     assignment_submissions.extend([
       Submission(user_id, user_name, path_to_file)
       for path_to_file in list_of_files

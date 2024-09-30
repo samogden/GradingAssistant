@@ -226,8 +226,10 @@ class CanvasAssignment(Assignment):
     if download_dir is None:
       download_dir = self.working_dir
     
-    if overwrite:
-      if os.path.exists(download_dir): shutil.rmtree(download_dir)
+    if os.path.exists(download_dir):
+      if overwrite:
+        shutil.rmtree(download_dir)
+    else:
       os.mkdir(download_dir)
     
     submission_files = collections.defaultdict(list)
