@@ -268,6 +268,8 @@ class AssignmentFromRubric():
         
       if df is None:
         df : pd.DataFrame = self.grade_submissions()
+      df["user_name"] = df["user_name"].apply(lambda u: str(u))
+      df = df.sort_values(by="user_name")
       df.to_csv(filename, index=False)
 
   def __init__(self, *args, **kwargs):
@@ -454,7 +456,7 @@ def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
     submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"), overwrite=False, download_all_variations=False)
   
   assignment_submissions = []
-  for (user_id, user_name), list_of_files in submissions.items():
+  for (user_id, _, user_name), list_of_files in submissions.items():
     assignment_submissions.extend([
       Submission(user_id, user_name, path_to_file)
       for path_to_file in list_of_files
