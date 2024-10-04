@@ -127,9 +127,12 @@ class Submission():
 
   def generate_results(self, rubric: typing.Dict):
     submission_contents = self.parse_submission()
-    
+    log.debug(f"rubric: {pprint.pformat(rubric)}")
+    log.info(f"{self.path_to_file}")
     for question_number in rubric.keys():
-      if self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number]):
+      
+      
+      if question_number in submission_contents and self.__compare_answers(rubric[question_number]['key'], submission_contents[question_number]):
         score = rubric[question_number]["points"]
         feedback = f""
       else:
