@@ -17,6 +17,7 @@ import typing
 import canvasapi
 import dotenv
 import pandas as pd
+import yaml
 
 import assignment
 
@@ -232,12 +233,9 @@ class AssignmentFromRubric():
     
     
     @classmethod
-    def build_from_rubric_json(cls, path_to_rubric) -> AssignmentFromRubric.AssignmentPart:
-      log.debug(f"{cls.__name__}.build_from_rubric_json({path_to_rubric})")
+    def build_from_rubric_json(cls, rubric_dict: typing.Dict) -> AssignmentFromRubric.AssignmentPart:
+      # log.debug(f"{cls.__name__}.build_from_rubric_json({path_to_rubric})")
       assignment_part_from_rubric = cls()
-    
-      with open(path_to_rubric) as fid:
-        rubric = json.load(fid)
       
       assignment_part_from_rubric.files = []
       if "files" in rubric:
@@ -300,10 +298,16 @@ class AssignmentFromRubric():
         part_rubric = os.path.join(rubric_base_dir, entry["location"], "rubric.json")
       else:
         part_rubric = os.path.join(rubric_base_dir, entry["location"])
+        
+      with open(path_to_rubric) as fid:
+        if part_rubric.endswith("json"):
+            rubric_dict = json.load(fid)
+        elif part_rubric.endswith("yaml"):
+          rubric_dict = yaml.safe_load(fid)
       
       assignment_from_rubric.parts.append((
         part_weight,
-        AssignmentFromRubric.AssignmentPart.build_from_rubric_json(part_rubric)
+        AssignmentFromRubric.AssignmentPart.build_from_rubric_json(rubric_dict)
       ))
     
     return assignment_from_rubric
