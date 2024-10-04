@@ -17,6 +17,7 @@ import typing
 import canvasapi
 import dotenv
 import pandas as pd
+import numpy as np
 import yaml
 
 import assignment
@@ -108,7 +109,9 @@ class Submission():
       (lambda s: s), # Leave as it is (this is technically a subcase of the other two but whatever)
       (lambda s: s.lower()), # make everything lowercase
       (lambda s: ''.join(s.split(' '))), # remove all spaces
-      (lambda s: convert_to_float_or_nan(s)) # Convert all to floats, if possible.  Note two NaNs are different
+      (lambda s: convert_to_float_or_nan(s)), # Convert all to floats, if possible.  Note two NaNs are different
+      (lambda s: re.findall(r'\d+', s))
+      
     ]
     
     # Now the tricky part.  I want to apply all cleaning operation to all of the inputs and see if any combinations match
@@ -117,7 +120,7 @@ class Submission():
     log.debug(f"a2 : {a2}")
     for op1, op2 in operation_combinations:
       try:
-        if op1(a1) == op2(a2):
+        if op1(a1) == op2(a2) and (op1(a1) and op2(a2)):
           return True
       except AttributeError:
         pass
@@ -272,8 +275,12 @@ class AssignmentFromRubric():
       if df is None:
         df : pd.DataFrame = self.grade_submissions()
       df["user_name"] = df["user_name"].apply(lambda u: str(u))
+      df["q_number"] = df["q_number"].astype(int)
       df = df.sort_values(by=["user_name", "q_number"])
       df.to_csv(filename, index=False)
+      
+      log.debug(f"name: {self.name}")
+      log.debug(f"average: {np.mean(df.groupby('user_name')['score'].sum().values)}")
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
