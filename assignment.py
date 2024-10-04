@@ -219,17 +219,16 @@ class CanvasAssignment(Assignment):
     return list(self.canvas_assignment.get_submissions(include='submission_history'))
   
   def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None, overwrite=False)\
-      -> Dict[Tuple[int, int],List[str]]:
+      -> Dict[Tuple[int, int, str],List[str]]:
     log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
     
     # Set up the attachments directory if not passed in as an argument
     if download_dir is None:
       download_dir = self.working_dir
     
-    if os.path.exists(download_dir):
-      if overwrite:
-        shutil.rmtree(download_dir)
-    else:
+    if overwrite:
+      if os.path.exists(download_dir): shutil.rmtree(download_dir)
+    if not os.path.exists(download_dir):
       os.mkdir(download_dir)
     
     submission_files = collections.defaultdict(list)
@@ -241,6 +240,8 @@ class CanvasAssignment(Assignment):
       student_name = self.canvas_course.get_user(student_submission.user_id)
       log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
       for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
+        if "attachments" not in submission_attempt:
+          continue
         log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
         
         # Download each attachment
@@ -258,9 +259,9 @@ class CanvasAssignment(Assignment):
             log.debug(f"{local_path} already exists")
           
           # Store the local filenames on a per-(student,attempt) basis
-          submission_files[(student_submission.user_id, attempt_number)].append(local_path)
+          submission_files[(student_submission.user_id, attempt_number, student_name)].append(local_path)
         if not download_all_variations:
-          continue
+          break
     return dict(submission_files)
   
   def push_feedback(self, user_id, score, feedback_text):
@@ -273,13 +274,14 @@ class CanvasAssignment(Assignment):
       log.debug(f"username: {self.canvas_course.get_user(user_id)}")
       return
     
-    # todo: combine all of this somehow more elegantly
-    with io.FileIO("feedback.txt", 'w+') as ffid:
-      ffid.write(feedback_text.encode('utf-8'))
-      ffid.flush()
-      ffid.seek(0)
-      submission.upload_comment(ffid)
-    os.remove("feedback.txt")
+    if len(feedback_text) > 0:
+      # todo: combine all of this somehow more elegantly
+      with io.FileIO("feedback.txt", 'w+') as ffid:
+        ffid.write(feedback_text.encode('utf-8'))
+        ffid.flush()
+        ffid.seek(0)
+        submission.upload_comment(ffid)
+      os.remove("feedback.txt")
     
     # Push feedback to canvas
     submission.edit(
