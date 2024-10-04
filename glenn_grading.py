@@ -237,24 +237,26 @@ class AssignmentFromRubric():
       # log.debug(f"{cls.__name__}.build_from_rubric_json({path_to_rubric})")
       assignment_part_from_rubric = cls()
       
+      log.debug(pprint.pformat(rubric_dict))
+      
       assignment_part_from_rubric.files = []
-      if "files" in rubric:
-        assignment_part_from_rubric.files.extend(rubric["files"])
-      if "file" in rubric:
-        assignment_part_from_rubric.files.append(rubric["file"])
+      if "files" in rubric_dict:
+        assignment_part_from_rubric.files.extend(rubric_dict["files"])
+      if "file" in rubric_dict:
+        assignment_part_from_rubric.files.append(rubric_dict["file"])
       
-      if "problems" in rubric:
-        assignment_part_from_rubric.rubric = rubric["problems"]
-      elif "rubric" in rubric:
-        assignment_part_from_rubric.rubric = rubric["rubric"]
+      if "problems" in rubric_dict:
+        assignment_part_from_rubric.rubric = rubric_dict["problems"]
+      elif "rubric" in rubric_dict:
+        assignment_part_from_rubric.rubric = rubric_dict["rubric"]
       
-      assignment_part_from_rubric.id = rubric["id"]
-      assignment_part_from_rubric.name = rubric["name"]
+      assignment_part_from_rubric.id = rubric_dict["id"]
+      assignment_part_from_rubric.name = rubric_dict["name"]
       
-      if "ordering" in rubric:
-        assignment_part_from_rubric.ordering = rubric["ordering"]
+      if "ordering" in rubric_dict:
+        assignment_part_from_rubric.ordering = rubric_dict["ordering"]
       
-      assignment_part_from_rubric.type = rubric["type"]
+      assignment_part_from_rubric.type = rubric_dict["type"]
       
       assignment_part_from_rubric.update_regexes()
       return assignment_part_from_rubric
@@ -298,13 +300,14 @@ class AssignmentFromRubric():
         part_rubric = os.path.join(rubric_base_dir, entry["location"], "rubric.json")
       else:
         part_rubric = os.path.join(rubric_base_dir, entry["location"])
-        
-      with open(path_to_rubric) as fid:
+      
+      log.debug(f"part_rubric: {part_rubric}")
+      
+      with open(part_rubric) as fid:
         if part_rubric.endswith("json"):
             rubric_dict = json.load(fid)
         elif part_rubric.endswith("yaml"):
           rubric_dict = yaml.safe_load(fid)
-      
       assignment_from_rubric.parts.append((
         part_weight,
         AssignmentFromRubric.AssignmentPart.build_from_rubric_json(rubric_dict)
@@ -536,6 +539,6 @@ def main():
 
 if __name__ == "__main__":
   dotenv.load_dotenv()
-  log.debug(pprint.pformat(os.environ.__dict__))
+  # log.debug(pprint.pformat(os.environ.__dict__))
   # exit()
   main()
