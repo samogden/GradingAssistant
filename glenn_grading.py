@@ -269,7 +269,7 @@ class AssignmentFromRubric():
       if df is None:
         df : pd.DataFrame = self.grade_submissions()
       df["user_name"] = df["user_name"].apply(lambda u: str(u))
-      df = df.sort_values(by="user_name")
+      df = df.sort_values(by=["user_name", "q_number"])
       df.to_csv(filename, index=False)
 
   def __init__(self, *args, **kwargs):
@@ -296,7 +296,10 @@ class AssignmentFromRubric():
         continue
       
       part_weight = entry["weight"]
-      part_rubric = os.path.join(rubric_base_dir, entry["location"], "rubric.json")
+      if os.path.isdir(os.path.join(rubric_base_dir, entry["location"])):
+        part_rubric = os.path.join(rubric_base_dir, entry["location"], "rubric.json")
+      else:
+        part_rubric = os.path.join(rubric_base_dir, entry["location"])
       
       assignment_from_rubric.parts.append((
         part_weight,
