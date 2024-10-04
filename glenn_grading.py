@@ -116,8 +116,6 @@ class Submission():
     
     # Now the tricky part.  I want to apply all cleaning operation to all of the inputs and see if any combinations match
     operation_combinations = itertools.product(cleaning_operations, repeat=2)
-    log.debug(f"a1 : {a1}")
-    log.debug(f"a2 : {a2}")
     for op1, op2 in operation_combinations:
       try:
         if op1(a1) == op2(a2) and (op1(a1) and op2(a2)):
@@ -197,7 +195,6 @@ class AssignmentFromRubric():
       for s in self.submissions:
       
         if self.type == "manual":
-          log.debug(self.rubric)
           overall_results.extend([
             {
               "q_number": q_number,
@@ -240,7 +237,6 @@ class AssignmentFromRubric():
     
     @classmethod
     def build_from_rubric_json(cls, rubric_dict: typing.Dict) -> AssignmentFromRubric.AssignmentPart:
-      # log.debug(f"{cls.__name__}.build_from_rubric_json({path_to_rubric})")
       assignment_part_from_rubric = cls()
       
       log.debug(pprint.pformat(rubric_dict))
@@ -364,7 +360,6 @@ def generate_CSVs(a: AssignmentFromRubric, student_submissions : typing.List[Sub
   
   for (weight, part) in a.parts:
     results_df = part.grade_submissions()
-    print(results_df)
     part.save_scores(results_df, working_dir=working_dir)
   
   if len(unsorted) > 0:
@@ -485,7 +480,6 @@ def get_submissions(course_id: int, assignment_id: int, prod: bool, limit=None):
   return assignment_submissions
 
 def submit_feedback(course_id: int, assignment_id: int, prod: bool, feedback: typing.List[typing.Dict], limit=None):
-  log.debug(assignment.CanvasAssignment.canvas)
   with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
     for grading_response in feedback:
       a.push_feedback(
