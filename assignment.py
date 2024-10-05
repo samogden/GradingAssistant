@@ -233,13 +233,19 @@ class CanvasAssignment(Assignment):
     
     submission_files = collections.defaultdict(list)
     
-    for student_submission in submissions:
+    for student_submission in submissions[:-1]:
       if student_submission.missing:
         # skip missing assignments
         continue
+      
+      # Get student name for posterity
       student_name = self.canvas_course.get_user(student_submission.user_id)
       log.debug(f"For {student_submission.user_id} there are {len(student_submission.submission_history)} submissions")
-      for attempt_number, submission_attempt in enumerate(student_submission.submission_history):
+      
+      # Cycle through each attempt, but walk the list backwards so we grab the latest first, in case that's the only one we end up grading
+      for attempt_number, submission_attempt in enumerate(student_submission.submission_history[::-1]):
+        
+        # If there are no attachments then the student never submitted anything and this submission was automatically closed
         if "attachments" not in submission_attempt:
           continue
         log.debug(f"Submission #{attempt_number+1} has {len(submission_attempt['attachments'])} variations")
@@ -251,6 +257,7 @@ class CanvasAssignment(Assignment):
           local_file_name = f"{student_name.name.replace(' ', '-')}_{attempt_number}_{student_submission.user_id}_{attachment['filename']}"
           local_path = os.path.join(download_dir, local_file_name)
           
+          # Download the file, overwriting if appropriate.
           if overwrite or not os.path.exists(local_path):
             log.debug(f"Downloading {attachment['url']} to {local_path}")
             urllib.request.urlretrieve(attachment['url'], local_path)
@@ -260,6 +267,8 @@ class CanvasAssignment(Assignment):
           
           # Store the local filenames on a per-(student,attempt) basis
           submission_files[(student_submission.user_id, attempt_number, student_name)].append(local_path)
+        
+        # Break if we were only supposed to download a single variation
         if not download_all_variations:
           break
     return dict(submission_files)
