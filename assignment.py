@@ -245,6 +245,8 @@ class CanvasAssignment(Assignment):
       # Cycle through each attempt, but walk the list backwards so we grab the latest first, in case that's the only one we end up grading
       for attempt_number, submission_attempt in enumerate(student_submission.submission_history[::-1]):
         
+        # todo: this might have to be improved to grab each combination of files separately in case a resubmission didn't have a full set of files for some reason
+        
         # If there are no attachments then the student never submitted anything and this submission was automatically closed
         if "attachments" not in submission_attempt:
           continue
