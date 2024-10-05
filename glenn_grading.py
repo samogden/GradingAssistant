@@ -292,7 +292,10 @@ class AssignmentFromRubric():
     log.debug(f"Using as a base: {rubric_base_dir}")
     
     with open(path_to_rubric) as fid:
-      base_rubric = json.load(fid)
+      if path_to_rubric.endswith("json"):
+        base_rubric = json.load(fid)
+      elif path_to_rubric.endswith("yaml"):
+        base_rubric = yaml.safe_load(fid)
     log.debug(f"base_rubric: {base_rubric}")
     
     for key, entry in base_rubric.items():
@@ -529,7 +532,7 @@ def main():
   student_files_dir = os.path.join(grading_base, "files")
   assignment_files_dir = os.path.join(grading_base, args.base_dir)
   
-  a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.json"))
+  a = AssignmentFromRubric.build_from_rubric_json(os.path.join(assignment_files_dir, "rubric.yaml"))
   
   if args.action == "GENERATE":
     student_submissions = get_submissions(args.course_id, args.assignment_id, args.prod, limit=args.limit)
