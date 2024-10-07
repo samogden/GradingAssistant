@@ -121,7 +121,7 @@ class Grader_docker(Grader, ABC):
       except docker.errors.NotFound as e:
         # default to asking what went wrong
         log.debug(e)
-        return json.dumps({"overall_score": None, "overall_feedback": "Error running in docker.  Likely due to timeout.  Please contact your professor."})
+        return json.dumps({"score": None, "overall_feedback": "Error running in docker.  Likely due to timeout.  Please contact your professor if you have questions."})
       
       # Read file from docker
       f = io.BytesIO()
@@ -320,6 +320,8 @@ class Grader_CST334(Grader_docker):
           # log.debug(f"Updating to use new results: {new_results}")
           results = new_results
         log.info(f"new_results: {new_results}")
+    if results.overall_score is None:
+      results.overall_score = 0
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results

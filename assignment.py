@@ -412,11 +412,8 @@ class CanvasProgrammingAssignment(CanvasAssignment):
         log.debug(f"username: {self.canvas_course.get_user(user_id)}")
         continue
       
-      try:
-        # Grade submission
-        feedback: misc.Feedback = grader.grade_assignment(input_files=files)
-        self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
-      except:
-        log.error("UNKNOWN ERROR!  SKIPPING SUBMISSION.  PLEASE DEBUG!")
+      # Grade submission
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files)
+      self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
       
     
