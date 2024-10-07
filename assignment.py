@@ -233,7 +233,7 @@ class CanvasAssignment(Assignment):
     
     submission_files = collections.defaultdict(list)
     
-    for student_submission in submissions[:-1]:
+    for student_submission in submissions:
       if student_submission.missing:
         # skip missing assignments
         continue
