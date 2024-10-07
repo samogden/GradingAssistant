@@ -248,12 +248,16 @@ class Grader_CST334(Grader_docker):
       results_file="/tmp/results.json"
     )
     
+    log.debug(f"feedback_str: {feedback_str}")
     # Load results that we asked for
     results_dict = json.loads(feedback_str)
     
     # Add in lint bonus, if applicable
-    if results_dict["lint_success"]:
-      results_dict["score"] += lint_bonus
+    try:
+      if results_dict["lint_success"]:
+        results_dict["score"] += lint_bonus
+    except KeyError:
+      pass
     
     # Build feedback string
     feedback_str = cls.build_feedback(results_dict)
