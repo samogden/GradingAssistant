@@ -244,7 +244,7 @@ class Grader_CST334(Grader_docker):
       image = image,
       files_to_copy=files_to_copy,
       working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
-      grade_command="git checkout {tag_to_test} ; timeout 60 python ../../helpers/grader.py --output /tmp/results.json",
+      grade_command="git checkout {tag_to_test} ; timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
       results_file="/tmp/results.json"
     )
     
