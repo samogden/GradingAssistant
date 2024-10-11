@@ -1,5 +1,6 @@
 #!env python
 import abc
+import collections
 import json
 import os
 import pprint
@@ -74,7 +75,6 @@ class Grader_docker(Grader, ABC):
     return image
   
   def start(self, image : docker.models.images,):
-    
     self.container = self.client.containers.run(
       image=image,
       detach=True,
@@ -101,8 +101,11 @@ class Grader_docker(Grader, ABC):
     for src_file, target_dir in files_to_copy:
       add_file_to_container(src_file, target_dir, self.container)
   
-  def execute(self, command, workdir=None) -> typing.Tuple[int, str, str]:
+  def execute(self, command="", container=None, workdir=None) -> typing.Tuple[int, str, str]:
     log.debug(f"execute: {command}")
+    if container is None:
+      container = self.container
+    
     extra_args = {}
     if workdir is not None:
       extra_args["workdir"] = workdir
@@ -155,19 +158,19 @@ class Grader_docker(Grader, ABC):
     return False
   
   @abc.abstractmethod
-  def execute_grading(self, *args, **kwargs) -> Tuple[int, str, str]:
+  def execute_grading(self, *args, **kwargs):
     pass
   
   @abc.abstractmethod
-  def score_grading(self, *args, **kwargs) -> misc.Feedback:
+  def score_grading(self, execution_results, *args, **kwargs) -> misc.Feedback:
     pass
   
   def grade_in_docker(self, files_to_copy=None, **kwargs) -> misc.Feedback:
     with self:
       if files_to_copy is not None:
         self.add_files_to_docker(files_to_copy)
-      self.execute_grading(**kwargs)
-      return self.score_grading(**kwargs)
+      execution_results = self.execute_grading(**kwargs)
+      return self.score_grading(execution_results, **kwargs)
     
 
 class Grader_CST334(Grader_docker):
@@ -263,7 +266,7 @@ class Grader_CST334(Grader_docker):
     )
     return rc, stdout, stderr
   
-  def score_grading(self, lint_bonus, *args, **kwargs) -> misc.Feedback:
+  def score_grading(self, *args, **kwargs) -> misc.Feedback:
     results = self.read_file("/tmp/results.json")
     if results is None:
       # Then something went awry in reading back feedback file
@@ -342,3 +345,66 @@ class Grader_CST334(Grader_docker):
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results
+
+
+class Grader_stepbystep(Grader_docker):
+  # todo:
+  #  We will want to enable rollback, where we can "undo" a few instructions.  This will likely be done by restarting student container
+  #  This will likely mean either overriding grade_in_docker, or a new function that restarts student and walks it forward again
+  
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.golden_container : docker.models.containers.Container = None
+    self.student_container : docker.models.containers.Container = None
+  
+  def restart_student_container(self):
+    # todo: rollbacks will likely just restart the student container and then walk through golden code
+    pass
+  
+  def start(self, image : docker.models.images,):
+    self.golden_container = self.client.containers.run(
+      image=image,
+      detach=True,
+      tty=True
+    )
+    self.student_container = self.client.containers.run(
+      image=image,
+      detach=True,
+      tty=True
+    )
+  
+  def stop(self):
+    self.golden_container.stop(timeout=1)
+    self.golden_container.remove()
+    self.golden_container = None
+    self.student_container.stop(timeout=1)
+    self.student_container.remove()
+    self.student_container = None
+  
+  
+  def execute_grading(self, golden_lines=[], student_lines=[], *args, **kwargs):
+    golden_results = collections.defaultdict([])
+    student_results = collections.defaultdict([])
+    def add_results(results_dict, rc, stdout, stderr):
+      results_dict[rc].append(rc)
+      results_dict[stdout].append(stdout)
+      results_dict[stderr].append(stderr)
+    
+    for (golden, student) in enumerate(zip(golden_lines, student_lines)):
+      add_results(golden_results, *self.execute(container=self.golden_container, command=golden))
+      add_results(student_results, *self.execute(container=self.student_container, command=student))
+    
+    return golden_results, student_results
+  
+  def score_grading(self, execution_results, *args, **kwargs) -> misc.Feedback:
+    golden_results, student_results = execution_results
+    num_matches = 0
+    for golden_stdout_line, student_stdout_line in zip(golden_results["stdout"], student_results["stdout"]):
+      if golden_stdout_line == student_stdout_line:
+        num_matches += 1
+    
+    return misc.Feedback(
+      overall_score=(num_matches / len(golden_results["stdout"])),
+      overall_feedback=f"Matched {num_matches} out of {len(golden_results['stdout'])}"
+    )
+    
