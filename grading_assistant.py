@@ -122,13 +122,16 @@ def main():
   log.debug(f"args: {args}")
   
   if args.action == "STEPBYSTEP":
-    with open(args.rubric) as fid:
-      rubric = yaml.safe_load(fid)
-    if not isinstance(rubric["steps"], list):
-      rubric["steps"] = rubric["steps"].split('\n')
-    g = grader.Grader_stepbystep()
-    f = g.grade_in_docker(golden_lines=rubric["steps"], student_lines=["ls", "ls /tm", "ls /dev"])
-    log.debug(f)
+    log.debug(args.assignments)
+    for assignment_name, assignment_id in args.assignments:
+      assignment_id = int(assignment_id)
+      log.debug(f"{assignment_name}, {assignment_id}")
+      with assignment.CanvasProgrammingAssignment(args.course_id, assignment_id, args.prod) as a:
+        a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+        if a.needs_grading:
+          a.grade(grader.Grader_stepbystep(rubric_file=args.rubric), push_feedback=args.push)
+        else:
+          log.info("No grading needed")
   
   elif args.action == "MOSS":
     for assignment_name, assignment_id in args.assignments:

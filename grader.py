@@ -17,6 +17,7 @@ import docker
 import docker.errors
 import docker.models.images
 import docker.models.containers
+import yaml
 
 import misc
 
@@ -275,8 +276,8 @@ class Grader_CST334(Grader_docker):
         overall_feedback="Something went wrong during grading, likely a timeout.  Please check your assignment for infinite loops and/or contact your professor."
       )
     results_dict = json.loads(results)
-    if "lint_success" in results_dict and results_dict["lint_success"]:
-      results_dict["score"] += lint_bonus
+    if "lint_success" in results_dict and results_dict["lint_success"] and "lint_success" in kwargs:
+      results_dict["score"] += kwargs["lint_bonus"]
     
     return misc.Feedback(
       overall_score=results_dict["score"],
@@ -352,10 +353,24 @@ class Grader_stepbystep(Grader_docker):
   #  We will want to enable rollback, where we can "undo" a few instructions.  This will likely be done by restarting student container
   #  This will likely mean either overriding grade_in_docker, or a new function that restarts student and walks it forward again
   
-  def __init__(self, *args, **kwargs):
+  def __init__(self, rubric_file, *args, **kwargs):
     super().__init__(*args, **kwargs)
+    self.rubric = self.parse_rubric(rubric_file)
     self.golden_container : docker.models.containers.Container = None
     self.student_container : docker.models.containers.Container = None
+  
+  def parse_rubric(self, rubric_file):
+    with open(rubric_file) as fid:
+      rubric = yaml.safe_load(fid)
+    if not isinstance(rubric["steps"], list):
+      rubric["steps"] = rubric["steps"].split('\n')
+    return rubric
+  
+  def parse_student_file(self, student_file):
+    with open(student_file) as fid:
+      return [l.strip() for l in fid.readlines()]
+      
+  
   
   def restart_student_container(self):
     # todo: rollbacks will likely just restart the student container and then walk through golden code
@@ -415,4 +430,15 @@ class Grader_stepbystep(Grader_docker):
       overall_score=(100.0 * num_matches / len(golden_results["stdout"])),
       overall_feedback=f"Matched {num_matches} out of {len(golden_results['stdout'])}"
     )
+  
+  
+  def grade_assignment(self, input_files: List[str], *args, **kwargs) -> misc.Feedback:
     
+    golden_lines = self.rubric["steps"]
+    student_lines = self.parse_student_file(input_files[0])
+    
+    results = self.grade_in_docker(golden_lines=golden_lines, student_lines=student_lines)
+    
+    log.debug(f"final results: {results}")
+    return results
+
