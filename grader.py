@@ -73,10 +73,7 @@ class Grader_docker(Grader, ABC):
     log.debug("Docker image built successfully")
     return image
   
-  def start(
-      self,
-      image : docker.models.images,
-  ):
+  def start(self, image : docker.models.images,):
     
     self.container = self.client.containers.run(
       image=image,
@@ -156,10 +153,25 @@ class Grader_docker(Grader, ABC):
       log.error(f"An exception occured: {exc_val}")
       log.error(exc_tb)
     return False
+  
+  @abc.abstractmethod
+  def execute_grading(self, *args, **kwargs) -> Tuple[int, str, str]:
+    pass
+  
+  @abc.abstractmethod
+  def score_grading(self, *args, **kwargs) -> misc.Feedback:
+    pass
+  
+  def grade_in_docker(self, files_to_copy, **kwargs) -> misc.Feedback:
+    
+    with self:
+      self.add_files_to_docker(files_to_copy)
+      self.execute_grading(**kwargs)
+      return self.score_grading(**kwargs)
+    
 
 class Grader_CST334(Grader_docker):
 
-  
   def __init__(self,
       assignment_path,
       use_online_repo=False
@@ -247,23 +259,15 @@ class Grader_CST334(Grader_docker):
     
     return '\n'.join(feedback_strs)
   
-  def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> misc.Feedback:
-    
-    files_to_copy = [
-      (
-        f,
-        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
-      )
-      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
-    ]
-    
-    with self:
-      self.add_files_to_docker(files_to_copy)
-      rc, stdout, stderr = self.execute(
-        command="timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
-        workdir=f"/tmp/grading/programming-assignments/{programming_assignment}/"
-      )
-      results = self.read_file("/tmp/results.json")
+  def execute_grading(self, programming_assignment, *args, **kwargs) -> Tuple[int, str, str]:
+    rc, stdout, stderr = self.execute(
+      command="timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
+      workdir=f"/tmp/grading/programming-assignments/{programming_assignment}/"
+    )
+    return rc, stdout, stderr
+  
+  def score_grading(self, lint_bonus, *args, **kwargs) -> misc.Feedback:
+    results = self.read_file("/tmp/results.json")
     if results is None:
       # Then something went awry in reading back feedback file
       return misc.Feedback(
@@ -273,11 +277,22 @@ class Grader_CST334(Grader_docker):
     results_dict = json.loads(results)
     if "lint_success" in results_dict and results_dict["lint_success"]:
       results_dict["score"] += lint_bonus
-      
+    
     return misc.Feedback(
       overall_score=results_dict["score"],
       overall_feedback=self.build_feedback(results_dict)
     )
+  
+  def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> misc.Feedback:
+    files_to_copy = [
+      (
+        f,
+        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
+      )
+      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
+    ]
+    return super().grade_in_docker(files_to_copy, programming_assignment=programming_assignment, lint_bonus=lint_bonus)
+    
   
   
   def grade_assignment(self, input_files: List[str], *args, **kwargs) -> misc.Feedback:
