@@ -386,12 +386,12 @@ class Grader_stepbystep(Grader_docker):
     golden_results = collections.defaultdict(list)
     student_results = collections.defaultdict(list)
     def add_results(results_dict, rc, stdout, stderr):
-      log.debug(f"Adding {rc} {stdout} {stderr}")
       results_dict["rc"].append(rc)
       results_dict["stdout"].append(stdout)
       results_dict["stderr"].append(stderr)
     
     for i, (golden, student) in enumerate(zip(golden_lines, student_lines)):
+      log.debug(f"commands: '{golden}' <-> '{student}'")
       add_results(golden_results, *self.execute(container=self.golden_container, command=golden))
       add_results(student_results, *self.execute(container=self.student_container, command=student))
     

@@ -7,6 +7,8 @@ import subprocess
 import tkinter as tk
 from typing import List
 
+import yaml
+
 import assignment
 
 import canvasapi
@@ -66,7 +68,9 @@ def parse_args():
   subparsers = parser.add_subparsers(dest="action")
   subparsers.add_parser("MOSS")
   subparsers.add_parser("MANUAL")
-  subparsers.add_parser("STEPBYSTEP")
+  stepbystep_parser = subparsers.add_parser("STEPBYSTEP")
+  stepbystep_parser.add_argument("--rubric", required=True)
+  
   
   
   args, remaining_args = parser.parse_known_args()
@@ -118,8 +122,12 @@ def main():
   log.debug(f"args: {args}")
   
   if args.action == "STEPBYSTEP":
+    with open(args.rubric) as fid:
+      rubric = yaml.safe_load(fid)
+    if not isinstance(rubric["steps"], list):
+      rubric["steps"] = rubric["steps"].split('\n')
     g = grader.Grader_stepbystep()
-    f = g.grade_in_docker(golden_lines=["ls", "ls /tmp", "ls /dev"], student_lines=["ls", "ls /tm", "ls /dev"])
+    f = g.grade_in_docker(golden_lines=rubric["steps"], student_lines=["ls", "ls /tm", "ls /dev"])
     log.debug(f)
   
   elif args.action == "MOSS":

@@ -1,0 +1,4 @@
+steps:
+  - ls
+  - ls /tmp
+  - ls /dev
