@@ -112,8 +112,9 @@ class Grader_docker(Grader, ABC):
       extra_args["workdir"] = workdir
     
     rc, (stdout, stderr) = container.exec_run(
-      cmd=command,
+      cmd=f"bash -c \"{command}\"",
       demux=True,
+      tty=True,
       **extra_args
     )
     
