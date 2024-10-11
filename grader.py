@@ -117,6 +117,8 @@ class Grader_docker(Grader, ABC):
       **extra_args
     )
     
+    log.debug(f"stdout: {stdout}")
+    
     return rc, stdout, stderr
   
   def read_file(self, path_to_file) -> str|None:
@@ -370,11 +372,21 @@ class Grader_stepbystep(Grader_docker):
     with open(student_file) as fid:
       return [l.strip() for l in fid.readlines()]
       
-  
-  
-  def restart_student_container(self):
-    # todo: rollbacks will likely just restart the student container and then walk through golden code
-    pass
+  def rollback(self):
+    # Stop and delete student container
+    self.student_container.stop(timeout=1)
+    self.student_container.remove()
+    self.student_container = None
+    
+    # Make a copy of the golden_container
+    rollback_image = self.golden_container.commit(repository="rollback", tag="latest")
+    
+    # Start student from the copy we just made
+    self.student_container = self.client.containers.run(
+      image=rollback_image.id,
+      detach=True,
+      tty=True
+    )
   
   def start(self, image : docker.models.images,):
     self.golden_container = self.client.containers.run(
@@ -397,7 +409,7 @@ class Grader_stepbystep(Grader_docker):
     self.student_container = None
   
   
-  def execute_grading(self, golden_lines=[], student_lines=[], *args, **kwargs):
+  def execute_grading(self, golden_lines=[], student_lines=[], do_rollback=True, *args, **kwargs):
     golden_results = collections.defaultdict(list)
     student_results = collections.defaultdict(list)
     def add_results(results_dict, rc, stdout, stderr):
@@ -409,6 +421,9 @@ class Grader_stepbystep(Grader_docker):
       log.debug(f"commands: '{golden}' <-> '{student}'")
       add_results(golden_results, *self.execute(container=self.golden_container, command=golden))
       add_results(student_results, *self.execute(container=self.student_container, command=student))
+      if do_rollback:
+        # Bring the student container up to date with our container
+        self.rollback()
     
     return golden_results, student_results
   
