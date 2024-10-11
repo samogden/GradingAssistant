@@ -420,13 +420,25 @@ class Grader_stepbystep(Grader_docker):
     
     for i, (golden, student) in enumerate(zip(golden_lines, student_lines)):
       log.debug(f"commands: '{golden}' <-> '{student}'")
-      add_results(golden_results, *self.execute(container=self.golden_container, command=golden))
-      add_results(student_results, *self.execute(container=self.student_container, command=student))
-      if do_rollback:
+      rc_g, stdout_g, stderr_g = self.execute(container=self.golden_container, command=golden)
+      rc_s, stdout_s, stderr_s = self.execute(container=self.student_container, command=student)
+      add_results(golden_results, rc_g, stdout_g, stderr_g)
+      add_results(student_results, rc_s, stdout_s, stderr_s)
+      if (not self.outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) ) and do_rollback:
         # Bring the student container up to date with our container
         self.rollback()
     
     return golden_results, student_results
+  
+  @staticmethod
+  def outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) -> bool:
+    if stdout_g != stdout_s:
+      return False
+    if stderr_g != stderr_s:
+      return False
+    if rc_g != rc_s:
+      return False
+    return True
   
   def score_grading(self, execution_results, *args, **kwargs) -> misc.Feedback:
     log.debug(f"execution_results: {execution_results}")
@@ -434,11 +446,11 @@ class Grader_stepbystep(Grader_docker):
     num_lines = len(golden_results["stdout"])
     num_matches = 0
     for i in range(num_lines):
-      if golden_results["rc"][i] != student_results["rc"][i]:
-        continue
-      if golden_results["stderr"][i] != student_results["stderr"][i]:
-        continue
-      if golden_results["stdout"][i] != student_results["stdout"][i]:
+      if not self.outputs_match(
+          golden_results["stdout"][i], student_results["stdout"][i],
+          golden_results["stderr"][i], student_results["stderr"][i],
+          golden_results["rc"][i], student_results["rc"][i]
+      ):
         continue
       num_matches += 1
     
