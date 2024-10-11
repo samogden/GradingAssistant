@@ -414,6 +414,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
       
       # Grade submission
       feedback: misc.Feedback = grader.grade_assignment(input_files=files)
-      self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
+      if push_feedback:
+        self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
       
     
