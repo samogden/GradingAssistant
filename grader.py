@@ -272,7 +272,7 @@ class Grader_CST334(Grader_docker):
       )
     results_dict = json.loads(results)
     if "lint_success" in results_dict and results_dict["lint_success"]:
-      results_dict["score"] += 1
+      results_dict["score"] += lint_bonus
       
     return misc.Feedback(
       overall_score=results_dict["score"],
