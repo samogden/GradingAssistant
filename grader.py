@@ -110,7 +110,7 @@ class Grader_docker(Grader, ABC):
     if workdir is not None:
       extra_args["workdir"] = workdir
     
-    rc, (stdout, stderr) = self.container.exec_run(
+    rc, (stdout, stderr) = container.exec_run(
       cmd=command,
       demux=True,
       **extra_args
@@ -383,28 +383,36 @@ class Grader_stepbystep(Grader_docker):
   
   
   def execute_grading(self, golden_lines=[], student_lines=[], *args, **kwargs):
-    golden_results = collections.defaultdict([])
-    student_results = collections.defaultdict([])
+    golden_results = collections.defaultdict(list)
+    student_results = collections.defaultdict(list)
     def add_results(results_dict, rc, stdout, stderr):
-      results_dict[rc].append(rc)
-      results_dict[stdout].append(stdout)
-      results_dict[stderr].append(stderr)
+      log.debug(f"Adding {rc} {stdout} {stderr}")
+      results_dict["rc"].append(rc)
+      results_dict["stdout"].append(stdout)
+      results_dict["stderr"].append(stderr)
     
-    for (golden, student) in enumerate(zip(golden_lines, student_lines)):
+    for i, (golden, student) in enumerate(zip(golden_lines, student_lines)):
       add_results(golden_results, *self.execute(container=self.golden_container, command=golden))
       add_results(student_results, *self.execute(container=self.student_container, command=student))
     
     return golden_results, student_results
   
   def score_grading(self, execution_results, *args, **kwargs) -> misc.Feedback:
+    log.debug(f"execution_results: {execution_results}")
     golden_results, student_results = execution_results
+    num_lines = len(golden_results["stdout"])
     num_matches = 0
-    for golden_stdout_line, student_stdout_line in zip(golden_results["stdout"], student_results["stdout"]):
-      if golden_stdout_line == student_stdout_line:
-        num_matches += 1
+    for i in range(num_lines):
+      if golden_results["rc"][i] != student_results["rc"][i]:
+        continue
+      if golden_results["stderr"][i] != student_results["stderr"][i]:
+        continue
+      if golden_results["stdout"][i] != student_results["stdout"][i]:
+        continue
+      num_matches += 1
     
     return misc.Feedback(
-      overall_score=(num_matches / len(golden_results["stdout"])),
+      overall_score=(100.0 * num_matches / len(golden_results["stdout"])),
       overall_feedback=f"Matched {num_matches} out of {len(golden_results['stdout'])}"
     )
     

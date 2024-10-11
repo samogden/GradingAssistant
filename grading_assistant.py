@@ -66,6 +66,8 @@ def parse_args():
   subparsers = parser.add_subparsers(dest="action")
   subparsers.add_parser("MOSS")
   subparsers.add_parser("MANUAL")
+  subparsers.add_parser("STEPBYSTEP")
+  
   
   args, remaining_args = parser.parse_known_args()
   
@@ -115,7 +117,12 @@ def main():
   log.debug(f"args.action: {args.action}")
   log.debug(f"args: {args}")
   
-  if args.action == "MOSS":
+  if args.action == "STEPBYSTEP":
+    g = grader.Grader_stepbystep()
+    f = g.grade_in_docker(golden_lines=["ls", "ls /tmp", "ls /dev"], student_lines=["ls", "ls /tm", "ls /dev"])
+    log.debug(f)
+  
+  elif args.action == "MOSS":
     for assignment_name, assignment_id in args.assignments:
       assignment_id = int(assignment_id)
       run_moss_flow(args.course_id, assignment_id, assignment_name, args.prod, args.limit)
