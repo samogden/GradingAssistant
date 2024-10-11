@@ -162,20 +162,17 @@ class Grader_docker(Grader, ABC):
   def score_grading(self, *args, **kwargs) -> misc.Feedback:
     pass
   
-  def grade_in_docker(self, files_to_copy, **kwargs) -> misc.Feedback:
-    
+  def grade_in_docker(self, files_to_copy=None, **kwargs) -> misc.Feedback:
     with self:
-      self.add_files_to_docker(files_to_copy)
+      if files_to_copy is not None:
+        self.add_files_to_docker(files_to_copy)
       self.execute_grading(**kwargs)
       return self.score_grading(**kwargs)
     
 
 class Grader_CST334(Grader_docker):
 
-  def __init__(self,
-      assignment_path,
-      use_online_repo=False
-  ):
+  def __init__(self, assignment_path, use_online_repo=False):
     super().__init__()
     if use_online_repo:
       github_repo="https://github.com/samogden/CST334-assignments-online.git"
@@ -293,8 +290,6 @@ class Grader_CST334(Grader_docker):
     ]
     return super().grade_in_docker(files_to_copy, programming_assignment=programming_assignment, lint_bonus=lint_bonus)
     
-  
-  
   def grade_assignment(self, input_files: List[str], *args, **kwargs) -> misc.Feedback:
     
     # Legacy settings
@@ -347,6 +342,3 @@ class Grader_CST334(Grader_docker):
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results
-
-
-
