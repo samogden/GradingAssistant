@@ -73,82 +73,6 @@ class Grader_docker(Grader, ABC):
     log.debug("Docker image built successfully")
     return image
   
-  @classmethod
-  def run_docker_with_archive(
-      cls,
-      image : docker.models.images,
-      files_to_copy : List[Tuple[str,str]] = None, # files to copy.  Format is [(src, target), ...]
-      working_dir : str = "/", # working directory (i.e. where to grade from)
-      grade_command : str = "make grade", # command to grade (e.g. `make grade`)
-      results_file=None, # The results file, if you want one -- otherwise stdout should be returned
-  ) -> str:
-    
-    def add_file_to_container(src_file, target_dir, container):
-      # Prepare the files as a tarball to push into container
-      tarstream = io.BytesIO()
-      with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
-        tarhandle.add(src_file, arcname=os.path.basename(src_file))
-      tarstream.seek(0)
-      
-      # Push student files to image
-      container.put_archive(f"{target_dir}", tarstream)
-      
-    
-    # Start the container using the image
-    container = cls.client.containers.run(
-      image=image,
-      detach=True,
-      tty=True
-    )
-    
-    try:
-      for src_file, target_dir in files_to_copy:
-        add_file_to_container(src_file, target_dir, container)
-      
-      # Set up the command to change to the working directory and run the grading command
-      run_str = f"""
-        bash -c '
-          cd {working_dir} ;
-          {grade_command} ;
-        '
-        """
-      
-      # Run the grading commands!
-      exit_code, output = container.exec_run(run_str)
-      
-      # If we're not pulling from a file, just return stdout
-      if results_file is None:
-        # Just return stdout
-        return output
-      
-      # otherwise we should read the results file
-      try:
-        # Try to find the file on the system
-        bits, stats = container.get_archive(f"{results_file}")
-      except docker.errors.NotFound as e:
-        # default to asking what went wrong
-        log.debug(e)
-        return json.dumps({"score": None, "overall_feedback": "Error running in docker.  Likely due to timeout.  Please contact your professor if you have questions."})
-      
-      # Read file from docker
-      f = io.BytesIO()
-      for chunk in bits:
-        f.write(chunk)
-      f.seek(0)
-    finally:
-      container.stop(timeout=1)
-      container.remove()
-      
-    
-    # Open the tarball we just pulled and read the contents to a string buffer
-    with tarfile.open(fileobj=f, mode="r") as tarhandle:
-      results_f = tarhandle.getmember("results.json")
-      f = tarhandle.extractfile(results_f)
-      f.seek(0)
-      results_str = f.read().decode()
-    
-    return results_str
-    
   def start(
       self,
       image : docker.models.images,
@@ -248,7 +172,6 @@ class Grader_CST334(Grader_docker):
     self.assignment_path = assignment_path
     self.image = Grader_CST334.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
     
-  
   @staticmethod
   def build_feedback(results_dict) -> str:
     feedback_strs = [
@@ -324,51 +247,6 @@ class Grader_CST334(Grader_docker):
     
     return '\n'.join(feedback_strs)
   
-  @classmethod
-  def grade_in_docker_old(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
-    
-    files_to_copy = [
-      
-      (
-        f,
-        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
-      )
-      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
-    ]
-    
-    # Run our parent docker class
-    feedback_str = super().run_docker_with_archive(
-      image = image,
-      files_to_copy=files_to_copy,
-      working_dir = f"/tmp/grading/programming-assignments/{programming_assignment}/",
-      grade_command="git checkout {tag_to_test} ; timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
-      results_file="/tmp/results.json"
-    )
-    
-    log.debug(f"feedback_str: {feedback_str}")
-    # Load results that we asked for
-    results_dict = json.loads(feedback_str)
-    
-    # Add in lint bonus, if applicable
-    try:
-      if results_dict["lint_success"]:
-        results_dict["score"] += lint_bonus
-    except KeyError:
-      pass
-    
-    # Build feedback string
-    feedback_str = cls.build_feedback(results_dict)
-    
-    # Create feedback object
-    results = misc.Feedback(
-      overall_score=results_dict["score"],
-      overall_feedback=feedback_str
-    )
-    
-    log.debug(f"results: {results}")
-    
-    return results
-
   def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> misc.Feedback:
     
     files_to_copy = [
