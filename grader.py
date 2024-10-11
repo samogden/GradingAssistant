@@ -7,6 +7,7 @@ import shutil
 import tarfile
 import textwrap
 import time
+import typing
 from abc import ABC
 from typing import List, Tuple
 import io
@@ -179,20 +180,21 @@ class Grader_docker(Grader, ABC):
     for src_file, target_dir in files_to_copy:
       add_file_to_container(src_file, target_dir, self.container)
   
-  def _execute(self, command, workdir=None):
+  def execute(self, command, workdir=None) -> typing.Tuple[int, str, str]:
+    log.debug(f"execute: {command}")
     extra_args = {}
     if workdir is not None:
       extra_args["workdir"] = workdir
     
     rc, (stdout, stderr) = self.container.exec_run(
       cmd=command,
-      demux=False,
+      demux=True,
       **extra_args
     )
     
     return rc, stdout, stderr
   
-  def get_file(self, path_to_file):
+  def read_file(self, path_to_file) -> str|None:
     
     try:
       # Try to find the file on the system
@@ -323,7 +325,7 @@ class Grader_CST334(Grader_docker):
     return '\n'.join(feedback_strs)
   
   @classmethod
-  def grade_in_docker(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
+  def grade_in_docker_old(cls, image, source_dir, tag_to_test, programming_assignment, lint_bonus=1) -> misc.Feedback:
     
     files_to_copy = [
       
@@ -366,6 +368,39 @@ class Grader_CST334(Grader_docker):
     log.debug(f"results: {results}")
     
     return results
+
+  def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> misc.Feedback:
+    
+    files_to_copy = [
+      (
+        f,
+        f"/tmp/grading/programming-assignments/{programming_assignment}/{'src' if f.endswith('.c') else 'include'}"
+      )
+      for f in [os.path.join(source_dir, f_wo_path) for f_wo_path in os.listdir(source_dir)]
+    ]
+    
+    with self:
+      self.add_files_to_docker(files_to_copy)
+      rc, stdout, stderr = self.execute(
+        command="timeout 120 python ../../helpers/grader.py --output /tmp/results.json",
+        workdir=f"/tmp/grading/programming-assignments/{programming_assignment}/"
+      )
+      results = self.read_file("/tmp/results.json")
+    if results is None:
+      # Then something went awry in reading back feedback file
+      return misc.Feedback(
+        overall_score=0,
+        overall_feedback="Something went wrong during grading, likely a timeout.  Please check your assignment for infinite loops and/or contact your professor."
+      )
+    results_dict = json.loads(results)
+    if "lint_success" in results_dict and results_dict["lint_success"]:
+      results_dict["score"] += 1
+      
+    return misc.Feedback(
+      overall_score=results_dict["score"],
+      overall_feedback=self.build_feedback(results_dict)
+    )
+  
   
   def grade_assignment(self, input_files: List[str], *args, **kwargs) -> misc.Feedback:
     
@@ -406,10 +441,9 @@ class Grader_CST334(Grader_docker):
       # worst_results = {"score" : float('inf')}
       for i in range(num_repeats):
         new_results = self.grade_in_docker(
-          self.image,
           os.path.abspath("./student_code"),
-          tag_to_test,
-          self.assignment_path
+          self.assignment_path,
+          1
         )
         if is_better(new_results, results):
           # log.debug(f"Updating to use new results: {new_results}")
