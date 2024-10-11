@@ -169,12 +169,12 @@ class Grader_docker(Grader, ABC):
   def score_grading(self, execution_results, *args, **kwargs) -> misc.Feedback:
     pass
   
-  def grade_in_docker(self, files_to_copy=None, **kwargs) -> misc.Feedback:
+  def grade_in_docker(self, files_to_copy=None, *args, **kwargs) -> misc.Feedback:
     with self:
       if files_to_copy is not None:
         self.add_files_to_docker(files_to_copy)
-      execution_results = self.execute_grading(**kwargs)
-      return self.score_grading(execution_results, **kwargs)
+      execution_results = self.execute_grading(*args, **kwargs)
+      return self.score_grading(execution_results,*args,  **kwargs)
     
 
 class Grader_CST334(Grader_docker):
@@ -410,7 +410,7 @@ class Grader_stepbystep(Grader_docker):
     self.student_container = None
   
   
-  def execute_grading(self, golden_lines=[], student_lines=[], do_rollback=True, *args, **kwargs):
+  def execute_grading(self, golden_lines=[], student_lines=[], rollback=True, *args, **kwargs):
     golden_results = collections.defaultdict(list)
     student_results = collections.defaultdict(list)
     def add_results(results_dict, rc, stdout, stderr):
@@ -424,7 +424,7 @@ class Grader_stepbystep(Grader_docker):
       rc_s, stdout_s, stderr_s = self.execute(container=self.student_container, command=student)
       add_results(golden_results, rc_g, stdout_g, stderr_g)
       add_results(student_results, rc_s, stdout_s, stderr_s)
-      if (not self.outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) ) and do_rollback:
+      if (not self.outputs_match(stdout_g, stdout_s, stderr_g, stderr_s, rc_g, rc_s) ) and rollback:
         # Bring the student container up to date with our container
         self.rollback()
     
@@ -465,7 +465,7 @@ class Grader_stepbystep(Grader_docker):
     golden_lines = self.rubric["steps"]
     student_lines = self.parse_student_file(input_files[0])
     
-    results = self.grade_in_docker(golden_lines=golden_lines, student_lines=student_lines)
+    results = self.grade_in_docker(golden_lines=golden_lines, student_lines=student_lines, *args, **kwargs)
     
     log.debug(f"final results: {results}")
     return results

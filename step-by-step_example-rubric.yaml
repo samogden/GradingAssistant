@@ -1,4 +1,8 @@
 steps:
   - ls
   - ls /tmp
+  - echo "hello" > /tmp/temp.txt
+  - ls /tmp
+  - cat /tmp/temp.txt
+  - cat /tmp/temp.txt
   - ls /dev

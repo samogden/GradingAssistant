@@ -70,6 +70,7 @@ def parse_args():
   subparsers.add_parser("MANUAL")
   stepbystep_parser = subparsers.add_parser("STEPBYSTEP")
   stepbystep_parser.add_argument("--rubric", required=True)
+  stepbystep_parser.add_argument("--no_rollback_on_error", action="store_false", dest="rollback")
   
   
   
@@ -129,7 +130,7 @@ def main():
       with assignment.CanvasProgrammingAssignment(args.course_id, assignment_id, args.prod) as a:
         a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
         if a.needs_grading:
-          a.grade(grader.Grader_stepbystep(rubric_file=args.rubric), push_feedback=args.push)
+          a.grade(grader.Grader_stepbystep(rubric_file=args.rubric), push_feedback=args.push, rollback=args.rollback)
         else:
           log.info("No grading needed")
   

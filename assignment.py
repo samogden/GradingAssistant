@@ -400,7 +400,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     self.submission_files = self.download_submission_files(ungraded_submissions)
   
-  def grade(self, grader: grader_module.Grader, push_feedback=False):
+  def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
     # (student_submission.user_id, attempt_number, student_name), [local_paths]
     for (user_id, attempt_number, student_name), files in self.submission_files.items():
       log.debug(f"grading ({user_id}) : {files}")
@@ -413,7 +413,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
         continue
       
       # Grade submission
-      feedback: misc.Feedback = grader.grade_assignment(input_files=files)
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files, *args, **kwargs)
       if push_feedback:
         self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
       
