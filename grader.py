@@ -14,6 +14,7 @@ import io
 import docker
 import docker.errors
 import docker.models.images
+import docker.models.containers
 
 import misc
 
@@ -44,6 +45,11 @@ class GraderDummy:
 
 class Grader_docker(Grader, ABC):
   client = docker.from_env()
+  
+  def __init__(self, image=None, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.image = image if image is not None else "ubuntu"
+    self.container : docker.models.containers.Container = None
   
   @classmethod
   def build_docker_image(cls, base_image, github_repo):
@@ -142,6 +148,88 @@ class Grader_docker(Grader, ABC):
     
     return results_str
     
+  def start(
+      self,
+      image : docker.models.images,
+  ):
+    
+    self.container = self.client.containers.run(
+      image=image,
+      detach=True,
+      tty=True
+    )
+    
+  def add_files_to_docker(self, files_to_copy : List[Tuple[str,str]] = None):
+    """
+    
+    :param files_to_copy: Format is [(src, target), ...]):
+    :return:
+    """
+    
+    def add_file_to_container(src_file, target_dir, container):
+      # Prepare the files as a tarball to push into container
+      tarstream = io.BytesIO()
+      with tarfile.open(fileobj=tarstream, mode="w") as tarhandle:
+        tarhandle.add(src_file, arcname=os.path.basename(src_file))
+      tarstream.seek(0)
+      
+      # Push student files to image
+      container.put_archive(f"{target_dir}", tarstream)
+    
+    for src_file, target_dir in files_to_copy:
+      add_file_to_container(src_file, target_dir, self.container)
+  
+  def _execute(self, command, workdir=None):
+    extra_args = {}
+    if workdir is not None:
+      extra_args["workdir"] = workdir
+    
+    rc, (stdout, stderr) = self.container.exec_run(
+      cmd=command,
+      demux=False,
+      **extra_args
+    )
+    
+    return rc, stdout, stderr
+  
+  def get_file(self, path_to_file):
+    
+    try:
+      # Try to find the file on the system
+      bits, stats = self.container.get_archive(path_to_file)
+    except docker.errors.APIError as e:
+      log.error(f"Get archive failed: {e}")
+      return None
+    
+    # Read file from docker
+    f = io.BytesIO()
+    for chunk in bits:
+      f.write(chunk)
+    f.seek(0)
+    
+    # Open the tarball we just pulled and read the contents to a string buffer
+    with tarfile.open(fileobj=f, mode="r") as tarhandle:
+      results_f = tarhandle.getmember("results.json")
+      f = tarhandle.extractfile(results_f)
+      f.seek(0)
+      return f.read().decode()
+   
+  def stop(self):
+    self.container.stop(timeout=1)
+    self.container.remove()
+    self.container = None
+    
+  def __enter__(self):
+    log.info(f"Starting docker image {self.image} context")
+    self.start(self.image)
+  
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    log.info(f"Exiting docker image context")
+    self.stop()
+    if exc_type is not None:
+      log.error(f"An exception occured: {exc_val}")
+      log.error(exc_tb)
+    return False
 
 class Grader_CST334(Grader_docker):
 
@@ -332,3 +420,6 @@ class Grader_CST334(Grader_docker):
     log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
     return results
+
+
+
