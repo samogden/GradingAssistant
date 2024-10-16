@@ -380,7 +380,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     self.needs_grading = True
   
   
-  def prepare_assignment_for_grading(self, limit=None, regrade=False):
+  def prepare_assignment_for_grading(self, limit=None, regrade=False, only_inlcude_latest=True):
     
     # Grab assignment contents
     assignment_submissions : List[canvasapi.assignment.Submission] = self.get_student_submissions(self.canvas_assignment, True)
@@ -398,7 +398,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     log.debug(f"# ungraded_submissions: {len(ungraded_submissions)}")
     
-    self.submission_files = self.download_submission_files(ungraded_submissions)
+    self.submission_files = self.download_submission_files(ungraded_submissions, download_all_variations=(not only_inlcude_latest))
   
   def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
     # (student_submission.user_id, attempt_number, student_name), [local_paths]

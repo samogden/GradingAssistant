@@ -279,7 +279,7 @@ class Grader_CST334(Grader_docker):
         overall_feedback="Something went wrong during grading, likely a timeout.  Please check your assignment for infinite loops and/or contact your professor."
       )
     results_dict = json.loads(results)
-    if "lint_success" in results_dict and results_dict["lint_success"] and "lint_success" in kwargs:
+    if "lint_success" in results_dict and results_dict["lint_success"] and "lint_bonus" in kwargs:
       results_dict["score"] += kwargs["lint_bonus"]
     
     return misc.Feedback(
