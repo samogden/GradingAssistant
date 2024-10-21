@@ -277,13 +277,28 @@ class CanvasAssignment(Assignment):
   
   def push_feedback(self, user_id, score, feedback_text):
     log.debug(f"Adding feedback for {user_id}")
+    
     try:
+      self.canvas_assignment.submissions_bulk_update(
+        grade_data={
+          'submission[posted_grade]' : score
+        },
+        student_ids=[user_id]
+      )
+      
       submission = self.canvas_assignment.get_submission(user_id)
     except requests.exceptions.ConnectionError as e:
       log.error(e)
       log.debug(f"Failed on user_id = {user_id})")
       log.debug(f"username: {self.canvas_course.get_user(user_id)}")
       return
+      
+    # Push feedback to canvas
+    submission.edit(
+      submission={
+        'posted_grade':score,
+      },
+    )
     
     if len(feedback_text) > 0:
       # todo: combine all of this somehow more elegantly
@@ -293,13 +308,6 @@ class CanvasAssignment(Assignment):
         ffid.seek(0)
         submission.upload_comment(ffid)
       os.remove("feedback.txt")
-    
-    # Push feedback to canvas
-    submission.edit(
-      submission={
-        'posted_grade':score,
-      },
-    )
 
 
 class CanvasQuiz(CanvasAssignment):
