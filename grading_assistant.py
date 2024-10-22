@@ -73,6 +73,8 @@ def parse_args():
   subparsers.add_parser("MOSS", parents=[parent_parser])
   manual_parser = subparsers.add_parser("MANUAL", parents=[parent_parser])
   manual_parser.add_argument("--input_csv", required=True)
+  manual_parser.add_argument("--upload_dir")
+  
   stepbystep_parser = subparsers.add_parser("STEPBYSTEP", parents=[parent_parser])
   stepbystep_parser.add_argument("--rubric", required=True)
   stepbystep_parser.add_argument("--no_rollback_on_error", action="store_false", dest="rollback")
@@ -105,7 +107,15 @@ def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod
     print("STDERR:", result.stderr)
     print("Return Code:", result.returncode)
   
-def run_semi_manual_flow(course_id: int, assignment_id: int, csv_or_df: pd.DataFrame|str, prod: bool, limit=None, push_feedback=False):
+def run_semi_manual_flow(
+    course_id: int,
+    assignment_id: int,
+    csv_or_df: pd.DataFrame|str,
+    upload_dir,
+    prod: bool,
+    limit=None,
+    push_feedback=False
+):
   prod = False # todo: change this when actually running
   
   if isinstance(csv_or_df, str):
@@ -124,7 +134,7 @@ def run_semi_manual_flow(course_id: int, assignment_id: int, csv_or_df: pd.DataF
     a.grade(
       grader=grader.Grader_manual(df),
       push_feedback=push_feedback,
-      to_upload_base_dir="to_return"
+      to_upload_base_dir=upload_dir
     )
   
 
@@ -161,6 +171,7 @@ def main():
         args.course_id,
         assignment_id,
         args.input_csv,
+        args.upload_dir,
         args.prod,
         args.limit,
         push_feedback=args.push
