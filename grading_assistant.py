@@ -7,6 +7,7 @@ import subprocess
 import tkinter as tk
 from typing import List
 
+import pandas as pd
 import yaml
 
 import assignment
@@ -49,36 +50,35 @@ def GUI():
 
 
 def parse_args():
+
+  # Create a parent parser with shared arguments
+  parent_parser = argparse.ArgumentParser(add_help=False)
+  parent_parser.add_argument("--assignment", dest="assignments", action="append", nargs=2)
+  parent_parser.add_argument("--course_id", type=int, default=25068)
+  parent_parser.add_argument("--assignment_id", type=int, default=377043)
+  parent_parser.add_argument("--name", default="PA1")
+  parent_parser.add_argument("--regrade", action="store_true")
+  parent_parser.add_argument("--online", action="store_true")
+  parent_parser.add_argument("--prod", action="store_true")
+  parent_parser.add_argument("--push", action="store_true")
+  parent_parser.add_argument("--limit", type=int)
   
+  # Main parser
   parser = argparse.ArgumentParser()
   
-  parser.add_argument("--assignment", dest="assignments", action="append", nargs=2)
+  # Subparsers
+  subparsers = parser.add_subparsers(dest="action", required=True)
   
-  parser.add_argument("--course_id", type=int, default=25068)
-  parser.add_argument("--assignment_id", type=int, default=377043)
-  parser.add_argument("--name", default="PA1")
-  parser.add_argument("--regrade", action="store_true")
-  parser.add_argument("--online", action="store_true")
-  parser.add_argument("--prod", action="store_true")
-  parser.add_argument("--push", action="store_true")
-  parser.add_argument("--limit", type=int)
-  
-  
-  
-  subparsers = parser.add_subparsers(dest="action")
-  subparsers.add_parser("MOSS")
-  subparsers.add_parser("MANUAL")
-  stepbystep_parser = subparsers.add_parser("STEPBYSTEP")
+  # Each subcommand uses the parent parser to inherit shared arguments
+  subparsers.add_parser("MOSS", parents=[parent_parser])
+  manual_parser = subparsers.add_parser("MANUAL", parents=[parent_parser])
+  manual_parser.add_argument("--input_csv", required=True)
+  stepbystep_parser = subparsers.add_parser("STEPBYSTEP", parents=[parent_parser])
   stepbystep_parser.add_argument("--rubric", required=True)
   stepbystep_parser.add_argument("--no_rollback_on_error", action="store_false", dest="rollback")
   
-  
-  
-  args, remaining_args = parser.parse_known_args()
-  
-  # If there are remaining arguments (e.g., global flags after subcommands), reparse them
-  if remaining_args:
-    args = parser.parse_args(remaining_args, namespace=args)
+  # Parsing the arguments
+  args = parser.parse_args()
   
   return args
 
@@ -105,13 +105,28 @@ def run_moss_flow(course_id: int, assignment_id: int, assignment_name: str, prod
     print("STDERR:", result.stderr)
     print("Return Code:", result.returncode)
   
-def run_semi_manual_flow(course_id: int, assignment_id: int, prod: bool, limit=None):
-  with assignment.CanvasAssignment(course_id, assignment_id, prod) as a:
-    student_submissions = a.get_student_submissions(a.canvas_assignment, True)
-    if limit != None:
-      student_submissions = student_submissions[:limit]
-    submissions = a.download_submission_files(student_submissions, download_dir=os.path.join(os.getcwd(), "files"))
-
+def run_semi_manual_flow(course_id: int, assignment_id: int, csv_or_df: pd.DataFrame|str, prod: bool, limit=None, push_feedback=False):
+  prod = False # todo: change this when actually running
+  
+  if isinstance(csv_or_df, str):
+    df = pd.read_csv(csv_or_df)
+  else:
+    df = csv_or_df
+  df = df[df["user_id"].notna()]
+  df["user_id"] = df["user_id"].astype(int)
+  
+  log.debug(df.user_id)
+  
+  student_ids = df["user_id"].unique().tolist()
+  log.debug(student_ids)
+  with assignment.CanvasAssignment_manual(course_id, assignment_id, prod) as a:
+    a.prepare_assignment_for_grading(student_ids=student_ids)
+    a.grade(
+      grader=grader.Grader_manual(df),
+      push_feedback=push_feedback,
+      to_upload_base_dir="to_return"
+    )
+  
 
 def main():
   # log.debug(os.environ.get("CANVAS_API_KEY"))
@@ -142,7 +157,14 @@ def main():
   elif args.action == "MANUAL":
     for assignment_name, assignment_id in args.assignments:
       assignment_id = int(assignment_id)
-      run_semi_manual_flow(args.course_id, assignment_id, args.prod, args.limit)
+      run_semi_manual_flow(
+        args.course_id,
+        assignment_id,
+        args.input_csv,
+        args.prod,
+        args.limit,
+        push_feedback=args.push
+      )
   else:
     
     log.debug(args.assignments)

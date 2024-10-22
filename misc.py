@@ -63,6 +63,7 @@ class Feedback:
   overall_feedback: str = str()
   per_item_score: Dict[int, float] = dataclasses.field(default_factory=dict)
   per_item_feedback: Dict[int, str] = dataclasses.field(default_factory=dict)
+  attachments: List[str] = dataclasses.field(default_factory=list)
   
   def __str__(self):
     return f"Feedback({self.overall_score}, ...)"

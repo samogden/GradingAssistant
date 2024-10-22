@@ -204,6 +204,7 @@ class CanvasAssignment(Assignment):
     self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
     
     self.working_dir = tempfile.mkdtemp()
+    self.submission_files = {}
     
     super().__init__([])
   
@@ -275,7 +276,7 @@ class CanvasAssignment(Assignment):
           break
     return dict(submission_files)
   
-  def push_feedback(self, user_id, score, feedback_text):
+  def push_feedback(self, user_id, score, feedback_text, attachments=[]):
     log.debug(f"Adding feedback for {user_id}")
     
     try:
@@ -308,6 +309,28 @@ class CanvasAssignment(Assignment):
         ffid.seek(0)
         submission.upload_comment(ffid)
       os.remove("feedback.txt")
+    for attachment in attachments:
+      submission.upload_comment(attachment)
+  
+  
+  def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
+    # (student_submission.user_id, attempt_number, student_name), [local_paths]
+    for (user_id, attempt_number, student_name), files in self.submission_files.items():
+      log.debug(f"grading ({user_id}) : {files}")
+      try:
+        submission = self.canvas_assignment.get_submission(user_id)
+      except requests.exceptions.ConnectionError as e:
+        log.error(e)
+        log.debug(f"Failed on user_id = {user_id})")
+        log.debug(f"username: {self.canvas_course.get_user(user_id)}")
+        continue
+      
+      # Grade submission
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=user_id, *args, **kwargs)
+      log.debug(f"feedback: {feedback}")
+      if push_feedback:
+        self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
+
 
 
 class CanvasQuiz(CanvasAssignment):
@@ -387,7 +410,6 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     super().__init__(course_id, assignment_id, prod)
     self.needs_grading = True
   
-  
   def prepare_assignment_for_grading(self, limit=None, regrade=False, only_inlcude_latest=True):
     
     # Grab assignment contents
@@ -408,21 +430,6 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     self.submission_files = self.download_submission_files(ungraded_submissions, download_all_variations=(not only_inlcude_latest))
   
-  def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
-    # (student_submission.user_id, attempt_number, student_name), [local_paths]
-    for (user_id, attempt_number, student_name), files in self.submission_files.items():
-      log.debug(f"grading ({user_id}) : {files}")
-      try:
-        submission = self.canvas_assignment.get_submission(user_id)
-      except requests.exceptions.ConnectionError as e:
-        log.error(e)
-        log.debug(f"Failed on user_id = {user_id})")
-        log.debug(f"username: {self.canvas_course.get_user(user_id)}")
-        continue
-      
-      # Grade submission
-      feedback: misc.Feedback = grader.grade_assignment(input_files=files, *args, **kwargs)
-      if push_feedback:
-        self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback)
-      
-    
+class CanvasAssignment_manual(CanvasAssignment):
+  def prepare_assignment_for_grading(self, student_ids:List[int], limit=None, regrade=False, only_inlcude_latest=True):
+    self.submission_files = {(id, None, None) : [] for id in student_ids}

@@ -19,7 +19,10 @@ import docker.models.images
 import docker.models.containers
 import yaml
 
+import pandas as pd
+
 import misc
+
 
 import logging
 logging.basicConfig()
@@ -35,7 +38,7 @@ class Grader:
   # todo: change this so it is more general -- it takes an interable as input and produces a grade.
   #   The idea being that it can be either a HumanGrader, AIGrader, or CodeGrader
   @abc.abstractmethod
-  def grade_assignment(self, input_files: List[str], *args, **kwargs) -> misc.Feedback:
+  def grade_assignment(self, *args, **kwargs) -> misc.Feedback:
     pass
 
 
@@ -469,4 +472,32 @@ class Grader_stepbystep(Grader_docker):
     
     log.debug(f"final results: {results}")
     return results
+
+
+class Grader_manual(Grader):
+  def __init__(self, df: pd.DataFrame, *args, **kwargs):
+    """
+    
+    :param csv_or_df: CSV or DF, we assume there will be appropriate columsn (e.g. "total", "student_id")
+    :param args:
+    :param kwargs:
+    """
+    super().__init__(*args, **kwargs)
+    self.df : pd.DataFrame = df.set_index("user_id")
+  
+  def grade_assignment(self, *args, student_id, to_upload_base_dir, **kwargs) -> misc.Feedback:
+    # This will essentially look up the grade in the DF and return back a grade and feedback based on it
+    # this will be how we can merge the two flows
+    log.debug(f"Request to grade for {student_id}")
+    student_row = self.df.loc[student_id]
+    
+    per_problem_feedback = student_row[student_row.index.str.startswith('Q')].to_dict()
+    
+    return misc.Feedback(
+      overall_score=student_row["total"],
+      overall_feedback='\n'.join([f"{q}: {per_problem_feedback[q]}" for q in per_problem_feedback.keys()]),
+      attachments=[os.path.join(to_upload_base_dir, student_row["file"])]
+    )
+    
+
 
