@@ -305,7 +305,7 @@ class Grader_CST334(Grader_docker):
     # Legacy settings
     use_max = "use_max" in kwargs and kwargs["use_name"]
     tags = ["main"] if "tags" not in kwargs else kwargs["tags"]
-    num_repeats = 3 if "num_repeats" not in kwargs else kwargs["num_repeats"]
+    num_repeats = 10 if "num_repeats" not in kwargs else kwargs["num_repeats"]
     
     # Setup input files
     # todo: convert to using a temp file since I currently have to manually delete later on
