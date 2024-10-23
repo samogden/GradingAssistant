@@ -493,10 +493,14 @@ class Grader_manual(Grader):
     
     per_problem_feedback = student_row[student_row.index.str.startswith('Q')].to_dict()
     
+    with open(os.path.join(to_upload_base_dir, student_row["file"]), 'rb') as fid:
+      file_buffer = io.BytesIO(fid.read())
+      file_buffer.name = '999.pdf'
+      
     return misc.Feedback(
       overall_score=student_row["total"],
       overall_feedback='\n'.join([f"{q}: {per_problem_feedback[q]}" for q in per_problem_feedback.keys()]),
-      attachments=[os.path.join(to_upload_base_dir, student_row["file"])]
+      attachments=[file_buffer]
     )
     
 

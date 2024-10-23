@@ -301,16 +301,19 @@ class CanvasAssignment(Assignment):
       },
     )
     
-    if len(feedback_text) > 0:
-      # todo: combine all of this somehow more elegantly
-      with io.FileIO("feedback.txt", 'w+') as ffid:
-        ffid.write(feedback_text.encode('utf-8'))
+    def upload_buffer_as_file(buffer, name):
+      with io.FileIO(name, 'w+') as ffid:
+        ffid.write(buffer)
         ffid.flush()
         ffid.seek(0)
         submission.upload_comment(ffid)
-      os.remove("feedback.txt")
-    for attachment in attachments:
-      submission.upload_comment(attachment)
+      os.remove(name)
+    
+    if len(feedback_text) > 0:
+      upload_buffer_as_file(feedback_text.encode('utf-8'), "feedback.txt")
+      
+    for i, attachment_buffer in enumerate(attachments):
+      upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
   
   def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
