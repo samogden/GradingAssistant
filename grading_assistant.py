@@ -116,8 +116,6 @@ def run_semi_manual_flow(
     limit=None,
     push_feedback=False
 ):
-  prod = False # todo: change this when actually running
-  
   if isinstance(csv_or_df, str):
     df = pd.read_csv(csv_or_df)
   else:
