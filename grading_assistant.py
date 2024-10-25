@@ -70,6 +70,7 @@ def parse_args():
   subparsers = parser.add_subparsers(dest="action", required=True)
   
   # Each subcommand uses the parent parser to inherit shared arguments
+  subparsers.add_parser("GRADE", parents=[parent_parser])
   subparsers.add_parser("MOSS", parents=[parent_parser])
   manual_parser = subparsers.add_parser("MANUAL", parents=[parent_parser])
   manual_parser.add_argument("--input_csv", required=True)
