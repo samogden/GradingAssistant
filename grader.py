@@ -190,7 +190,16 @@ class Grader_CST334(Grader_docker):
       github_repo="https://github.com/samogden/CST334-assignments.git"
     self.assignment_path = assignment_path
     self.image = Grader_CST334.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
-    
+  
+  def check_for_trickery(self, input_file) -> bool:
+    try:
+      with open(input_file) as f:
+        if "exit(0)" in f.read():
+          return True
+    except IsADirectoryError:
+      pass
+    return False
+  
   @staticmethod
   def build_feedback(results_dict) -> str:
     feedback_strs = [
@@ -313,15 +322,24 @@ class Grader_CST334(Grader_docker):
     os.mkdir("student_code")
     
     # Copy the student code to the staging directory
+    files_copied = []
     for file_extension in [".c", ".h"]:
       try:
         file_to_copy = list(filter(lambda f: "student_code" in f and f.endswith(file_extension), input_files))[0]
+        files_copied.append(file_to_copy)
         shutil.copy(
           file_to_copy,
           f"./student_code/student_code{file_extension}"
         )
       except IndexError:
         log.warning("Single file submitted")
+    
+    # Check for trickery, per Elijah's trials (so far)
+    if any([self.check_for_trickery(f) for f in files_copied]):
+      return misc.Feedback(
+        overall_score=0.0,
+        overall_feedback="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
+      )
     
     # Define a comparison function to allow us to pick either the best or worst outcome
     def is_better(score1, score2):
@@ -335,18 +353,16 @@ class Grader_CST334(Grader_docker):
     
     results = misc.Feedback()
     
-    for tag_to_test in tags:
-      # worst_results = {"score" : float('inf')}
-      for i in range(num_repeats):
-        new_results = self.grade_in_docker(
-          os.path.abspath("./student_code"),
-          self.assignment_path,
-          1
-        )
-        if is_better(new_results, results):
-          # log.debug(f"Updating to use new results: {new_results}")
-          results = new_results
-        log.info(f"new_results: {new_results}")
+    for i in range(num_repeats):
+      new_results = self.grade_in_docker(
+        os.path.abspath("./student_code"),
+        self.assignment_path,
+        1
+      )
+      if is_better(new_results, results):
+        # log.debug(f"Updating to use new results: {new_results}")
+        results = new_results
+      log.info(f"new_results: {new_results}")
     if results.overall_score is None:
       results.overall_score = 0
     log.debug(f"final results: {results}")
