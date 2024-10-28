@@ -334,7 +334,8 @@ class CanvasAssignment(Assignment):
       feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=current_user_id, *args, **kwargs)
       log.debug(f"feedback: {feedback}")
       if push_feedback:
-        self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
+        # self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
+        self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, [])
 
 
 
@@ -423,8 +424,8 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     if regrade:
       ungraded_submissions = assignment_submissions
-    elif "user_ids" in kwargs:
-      ungraded_submissions = list(filter(lambda s: s.user_id in kwargs["user_ids"], assignment_submissions))
+    # elif "user_ids" in kwargs and kwargs["user_ids"] is not None:
+    #   ungraded_submissions = list(filter(lambda s: s.user_id in kwargs["user_ids"], assignment_submissions))
     else:
       ungraded_submissions = list(filter(lambda s: s.workflow_state == "submitted", assignment_submissions))
       
