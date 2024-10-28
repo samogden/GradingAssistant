@@ -315,7 +315,7 @@ class Grader_CST334(Grader_docker):
     # Copy the student code to the staging directory
     for file_extension in [".c", ".h"]:
       try:
-        file_to_copy = list(filter(lambda f: f.endswith(file_extension), input_files))[0]
+        file_to_copy = list(filter(lambda f: "student_code" in f and f.endswith(file_extension), input_files))[0]
         shutil.copy(
           file_to_copy,
           f"./student_code/student_code{file_extension}"
