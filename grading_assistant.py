@@ -62,6 +62,7 @@ def parse_args():
   parent_parser.add_argument("--prod", action="store_true")
   parent_parser.add_argument("--push", action="store_true")
   parent_parser.add_argument("--limit", type=int)
+  parent_parser.add_argument("--user_id", type=int, default=None, help="Specific user_id to check submission for")
   
   # Main parser
   parser = argparse.ArgumentParser()
@@ -183,7 +184,7 @@ def main():
       log.debug(f"{assignment_name}, {assignment_id}")
       with assignment.CanvasProgrammingAssignment(args.course_id, assignment_id, args.prod) as a:
         # a = assignment.CanvasAssignment(args.course_id, assignment_id, args.prod)
-        a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade)
+        a.prepare_assignment_for_grading(limit=args.limit, regrade=args.regrade, user_ids=[args.user_id])
         if a.needs_grading:
           a.grade(grader.Grader_CST334(assignment_name, use_online_repo=args.online), push_feedback=args.push)
         else:

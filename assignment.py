@@ -219,7 +219,7 @@ class CanvasAssignment(Assignment):
     
     return list(self.canvas_assignment.get_submissions(include='submission_history'))
   
-  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None, overwrite=False)\
+  def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None, overwrite=False, user_id=None)\
       -> Dict[Tuple[int, int, str],List[str]]:
     log.debug(f"download_submission_files(self, {len(submissions)} submissions)")
     
@@ -237,6 +237,8 @@ class CanvasAssignment(Assignment):
     for student_submission in submissions:
       if student_submission.missing:
         # skip missing assignments
+        continue
+      if user_id is not None and student_submission.user_id != user_id:
         continue
       
       # Get student name for posterity
@@ -318,21 +320,21 @@ class CanvasAssignment(Assignment):
   
   def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
     # (student_submission.user_id, attempt_number, student_name), [local_paths]
-    for (user_id, attempt_number, student_name), files in self.submission_files.items():
-      log.debug(f"grading ({user_id}) : {files}")
+    for (current_user_id, attempt_number, student_name), files in self.submission_files.items():
+      log.debug(f"grading ({current_user_id}) : {files}")
       try:
-        submission = self.canvas_assignment.get_submission(user_id)
+        submission = self.canvas_assignment.get_submission(current_user_id)
       except requests.exceptions.ConnectionError as e:
         log.error(e)
-        log.debug(f"Failed on user_id = {user_id})")
-        log.debug(f"username: {self.canvas_course.get_user(user_id)}")
+        log.debug(f"Failed on user_id = {current_user_id})")
+        log.debug(f"username: {self.canvas_course.get_user(current_user_id)}")
         continue
       
       # Grade submission
-      feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=user_id, *args, **kwargs)
+      feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=current_user_id, *args, **kwargs)
       log.debug(f"feedback: {feedback}")
       if push_feedback:
-        self.push_feedback(user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
+        self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
 
 
 
@@ -413,7 +415,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     super().__init__(course_id, assignment_id, prod)
     self.needs_grading = True
   
-  def prepare_assignment_for_grading(self, limit=None, regrade=False, only_inlcude_latest=True):
+  def prepare_assignment_for_grading(self, limit=None, regrade=False, only_include_latest=True, *args, **kwargs):
     
     # Grab assignment contents
     assignment_submissions : List[canvasapi.assignment.Submission] = self.get_student_submissions(self.canvas_assignment, True)
@@ -421,8 +423,11 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     if regrade:
       ungraded_submissions = assignment_submissions
+    elif "user_ids" in kwargs:
+      ungraded_submissions = list(filter(lambda s: s.user_id in kwargs["user_ids"], assignment_submissions))
     else:
       ungraded_submissions = list(filter(lambda s: s.workflow_state == "submitted", assignment_submissions))
+      
     
     if limit is not None:
       ungraded_submissions = ungraded_submissions[:limit]
@@ -431,7 +436,7 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     
     log.debug(f"# ungraded_submissions: {len(ungraded_submissions)}")
     
-    self.submission_files = self.download_submission_files(ungraded_submissions, download_all_variations=(not only_inlcude_latest))
+    self.submission_files = self.download_submission_files(ungraded_submissions, download_all_variations=(not only_include_latest))
   
 class CanvasAssignment_manual(CanvasAssignment):
   def prepare_assignment_for_grading(self, student_ids:List[int], limit=None, regrade=False, only_inlcude_latest=True):
