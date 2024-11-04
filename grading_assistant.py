@@ -189,7 +189,8 @@ def main():
         args.upload_dir,
         args.prod,
         args.limit,
-        push_feedback=args.push
+        push_feedback=args.push,
+        clobber_feedback=args.clobber
       )
   else:
     

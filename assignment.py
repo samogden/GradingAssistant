@@ -346,7 +346,7 @@ class CanvasAssignment(Assignment):
         
         # Make the DELETE request to delete the comment
         response = requests.delete(delete_url, headers={"Authorization": f"Bearer {self.canvas_key}"})
-        if response.status_code == 204:
+        if response.status_code == 200:
           print(f"Deleted comment {comment_id}")
         else:
           print(f"Failed to delete comment {comment_id}: {response.json()}")
@@ -383,8 +383,7 @@ class CanvasAssignment(Assignment):
       feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=current_user_id, *args, **kwargs)
       log.debug(f"feedback: {feedback}")
       if push_feedback:
-        # self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments)
-        self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, [])
+        self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments, clobber_feedback=clobber_feedback)
 
 
 
