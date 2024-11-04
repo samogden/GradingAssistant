@@ -7,6 +7,7 @@ import logging
 import os
 import pprint
 import shutil
+import sys
 import tempfile
 import time
 import tkinter as tk
@@ -28,6 +29,8 @@ import grader as grader_module
 import misc
 import question
 from misc import get_file_list
+import fuzzywuzzy.fuzz
+import colorama
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -278,14 +281,27 @@ class CanvasAssignment(Assignment):
           break
     return dict(submission_files)
   
-  def check_student_names(self, names_and_ids:Tuple[str, int], threshold=0.8):
+  def check_student_names(self, names_and_ids:List[Tuple[str, int]], threshold=0.8):
     
     id_width = max(map(lambda s: len(str(s[1])), names_and_ids))
     local_width = max(map(lambda s: len(s[0]), names_and_ids))
     
-    for student_name, student_id in names_and_ids:
-      canvas_name = self.canvas_course.get_user(int(student_id)).name
-      compare_str = f"{student_id:{id_width}} : {fuzzywuzzy.fuzz.ratio(student_name, canvas_name):3}% : {student_name:{local_width}} ?? {canvas_name}"
+    comparisons = []
+    log.debug("Checking user IDs")
+    for student_name, user_id in names_and_ids:
+      sys.stdout.write('.')
+      sys.stdout.flush()
+      canvas_name = self.canvas_course.get_user(int(user_id)).name
+      ratio = (fuzzywuzzy.fuzz.ratio(student_name, canvas_name) / 100.0)
+      comparisons.append((
+        ratio,
+        user_id,
+        student_name,
+        canvas_name
+      ))
+    
+    for (ratio, user_id, student_name, canvas_name) in sorted(comparisons):
+      compare_str = f"{user_id:{id_width}} : {100*ratio:3}% : {student_name:{local_width}} ?? {canvas_name}"
       if (fuzzywuzzy.fuzz.ratio(student_name, canvas_name) / 100.0) <= threshold:
         compare_str = colorama.Back.RED + colorama.Fore.LIGHTGREEN_EX + colorama.Style.BRIGHT + compare_str + colorama.Style.RESET_ALL
       
