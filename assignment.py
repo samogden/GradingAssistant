@@ -198,10 +198,13 @@ class CanvasAssignment(Assignment):
     if self.__class__.canvas is None:
       if prod:
         log.debug("Using canvas PROD")
-        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL_prod"), os.environ.get("CANVAS_API_KEY_prod"))
+        self.canvas_url = os.environ.get("CANVAS_API_URL_prod")
+        self.canvas_key = os.environ.get("CANVAS_API_KEY_prod")
       else:
         log.debug("Using canvas DEV")
-        self.__class__.canvas = canvasapi.Canvas(os.environ.get("CANVAS_API_URL"), os.environ.get("CANVAS_API_KEY"))
+        self.canvas_url = os.environ.get("CANVAS_API_URL")
+        self.canvas_key = os.environ.get("CANVAS_API_KEY")
+      self.__class__.canvas = canvasapi.Canvas(self.canvas_url, self.canvas_key)
     
     self.canvas_course = self.canvas.get_course(course_id)
     self.canvas_assignment = self.canvas_course.get_assignment(assignment_id)
@@ -331,6 +334,23 @@ class CanvasAssignment(Assignment):
         'posted_grade':score,
       },
     )
+
+    if clobber_feedback:
+      log.debug("Clobbering...")
+      
+      for comment in submission.submission_comments:
+        # log.debug(f"Existing comment: {comment}")
+        comment_id = comment['id']
+        # Construct the URL to delete the comment
+        delete_url = f"{self.canvas_url}/api/v1/courses/{self.canvas_course.id}/assignments/{self.canvas_assignment.id}/submissions/{user_id}/comments/{comment_id}"
+        
+        # Make the DELETE request to delete the comment
+        response = requests.delete(delete_url, headers={"Authorization": f"Bearer {self.canvas_key}"})
+        if response.status_code == 204:
+          print(f"Deleted comment {comment_id}")
+        else:
+          print(f"Failed to delete comment {comment_id}: {response.json()}")
+    
     
     def upload_buffer_as_file(buffer, name):
       with io.FileIO(name, 'w+') as ffid:
@@ -347,7 +367,7 @@ class CanvasAssignment(Assignment):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
   
-  def grade(self, grader: grader_module.Grader, push_feedback=False, *args, **kwargs):
+  def grade(self, grader: grader_module.Grader_old, push_feedback=False, clobber_feedback=False, *args, **kwargs):
     # (student_submission.user_id, attempt_number, student_name), [local_paths]
     for (current_user_id, attempt_number, student_name), files in self.submission_files.items():
       log.debug(f"grading ({current_user_id}) : {files}")

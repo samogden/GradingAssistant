@@ -61,6 +61,7 @@ def parse_args():
   parent_parser.add_argument("--online", action="store_true")
   parent_parser.add_argument("--prod", action="store_true")
   parent_parser.add_argument("--push", action="store_true")
+  parent_parser.add_argument("--clobber", action="store_true")
   parent_parser.add_argument("--limit", type=int)
   parent_parser.add_argument("--user_id", type=int, default=None, help="Specific user_id to check submission for")
   
@@ -116,7 +117,8 @@ def run_semi_manual_flow(
     upload_dir,
     prod: bool,
     limit=None,
-    push_feedback=False
+    push_feedback=False,
+    clobber_feedback=False
 ):
   if isinstance(csv_or_df, str):
     df = pd.read_csv(csv_or_df)
@@ -130,19 +132,24 @@ def run_semi_manual_flow(
   student_ids = df["user_id"].unique().tolist()
   log.debug(student_ids)
   
+  if limit is not None:
+    student_ids = student_ids[:limit]
+    log.debug(student_ids)
+  
   with assignment.CanvasAssignment_manual(course_id, assignment_id, prod) as a:
     a.prepare_assignment_for_grading(student_ids=student_ids)
-    a.check_student_names([(row.name, row.user_id) for row in df.itertuples()])
+    a.check_student_names([(str(row.name), int(row.user_id)) for row in df.itertuples() if row.user_id in student_ids])
     
     confirmation = input("Do these names look good? (y/N)")
     if confirmation.lower() != "y":
-      log.warning("Not continuing")
+      log.warning("Not continuing per instructions.")
       return
     
     a.grade(
-      grader=grader.Grader_manual(df),
+      grader=grader.Grader_old_manual(df),
       push_feedback=push_feedback,
-      to_upload_base_dir=upload_dir
+      to_upload_base_dir=upload_dir,
+      clobber_feedback=clobber_feedback
     )
   
 
