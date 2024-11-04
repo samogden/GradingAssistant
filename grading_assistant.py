@@ -129,8 +129,16 @@ def run_semi_manual_flow(
   
   student_ids = df["user_id"].unique().tolist()
   log.debug(student_ids)
+  
   with assignment.CanvasAssignment_manual(course_id, assignment_id, prod) as a:
     a.prepare_assignment_for_grading(student_ids=student_ids)
+    a.check_student_names([(row.name, row.user_id) for row in df.itertuples()])
+    
+    confirmation = input("Do these names look good? (y/N)")
+    if confirmation.lower() != "y":
+      log.warning("Not continuing")
+      return
+    
     a.grade(
       grader=grader.Grader_manual(df),
       push_feedback=push_feedback,
