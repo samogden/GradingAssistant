@@ -292,8 +292,8 @@ class CanvasAssignment(Assignment):
     comparisons = []
     log.debug("Checking user IDs")
     for student_name, user_id in names_and_ids:
-      sys.stdout.write('.')
-      sys.stdout.flush()
+      sys.stderr.write('.')
+      sys.stderr.flush()
       canvas_name = self.canvas_course.get_user(int(user_id)).name
       ratio = (fuzzywuzzy.fuzz.ratio(student_name, canvas_name) / 100.0)
       comparisons.append((
@@ -302,6 +302,7 @@ class CanvasAssignment(Assignment):
         student_name,
         canvas_name
       ))
+    sys.stderr.write('\n')
     
     for (ratio, user_id, student_name, canvas_name) in sorted(comparisons):
       compare_str = f"{user_id:{id_width}} : {100*ratio:3}% : {student_name:{local_width}} ?? {canvas_name}"
