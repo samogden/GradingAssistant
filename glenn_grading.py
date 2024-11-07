@@ -110,17 +110,19 @@ class Submission():
       (lambda s: s.lower()), # make everything lowercase
       (lambda s: ''.join(s.split(' '))), # remove all spaces
       (lambda s: convert_to_float_or_nan(s)), # Convert all to floats, if possible.  Note two NaNs are different
-      (lambda s: re.findall(r'\d+', s))
+      (lambda s: re.findall(r'\d+', s)),
+      (lambda s: ', '.join(s))
       
     ]
     
+    log.debug(f"{a1} <-> {a2}")
     # Now the tricky part.  I want to apply all cleaning operation to all of the inputs and see if any combinations match
     operation_combinations = itertools.product(cleaning_operations, repeat=2)
     for op1, op2 in operation_combinations:
       try:
         if op1(a1) == op2(a2) and (op1(a1) and op2(a2)):
           return True
-      except AttributeError:
+      except (AttributeError, TypeError):
         pass
     if a2 in a1:
       return True
