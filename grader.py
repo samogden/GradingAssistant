@@ -370,9 +370,6 @@ class Grader_CST334(Grader_docker):
 
 
 class Grader_stepbystep(Grader_docker):
-  # todo:
-  #  We will want to enable rollback, where we can "undo" a few instructions.  This will likely be done by restarting student container
-  #  This will likely mean either overriding grade_in_docker, or a new function that restarts student and walks it forward again
   
   def __init__(self, rubric_file, *args, **kwargs):
     super().__init__(*args, **kwargs)
