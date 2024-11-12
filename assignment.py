@@ -222,8 +222,9 @@ class CanvasAssignment(Assignment):
   
   def get_student_submissions(self, canvas_assignment: canvasapi.assignment, only_include_latest=True) -> List[canvasapi.assignment.Submission]:
     log.debug(f"get_student_submission({canvas_assignment}, {only_include_latest})")
+    submissions = list(self.canvas_assignment.get_submissions(include='submission_history'))
     
-    return list(self.canvas_assignment.get_submissions(include='submission_history'))
+    return submissions
   
   def download_submission_files(self, submissions: List[canvasapi.assignment.Submission], download_all_variations=False, download_dir=None, overwrite=False, user_id=None)\
       -> Dict[Tuple[int, int, str],List[str]]:
@@ -470,6 +471,9 @@ class CanvasProgrammingAssignment(CanvasAssignment):
     # Grab assignment contents
     assignment_submissions : List[canvasapi.assignment.Submission] = self.get_student_submissions(self.canvas_assignment, True)
     log.debug(f"# assignment_submissions: {len(assignment_submissions)}")
+    
+    # Filter out assignments that actually have files in their submission
+    assignment_submissions = list(filter(lambda s: len(s.attachments) > 0, assignment_submissions))
     
     if regrade:
       ungraded_submissions = assignment_submissions
