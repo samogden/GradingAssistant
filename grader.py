@@ -341,33 +341,31 @@ class Grader_CST334(Grader_docker):
         overall_feedback="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
       )
     
-    # Define a comparison function to allow us to pick either the best or worst outcome
-    def is_better(score1, score2):
-      # log.debug(f"is_better({score1}, {score2})")
-      if use_max:
-        return score2 < score1
-      return score1 < score2
-    
     # Set up to be able to run multiple times
     # todo: I should probably move to the results format for this
     
-    results = misc.Feedback()
+    list_of_results : List[misc.Feedback] = []
     
     for i in range(num_repeats):
-      new_results = self.grade_in_docker(
-        os.path.abspath("./student_code"),
-        self.assignment_path,
-        1
+      list_of_results.append(
+        self.grade_in_docker(
+          os.path.abspath("./student_code"),
+          self.assignment_path,
+          1
+        )
       )
-      if is_better(new_results, results):
-        # log.debug(f"Updating to use new results: {new_results}")
-        results = new_results
-      log.info(f"new_results: {new_results}")
-    if results.overall_score is None:
-      results.overall_score = 0
-    log.debug(f"final results: {results}")
     shutil.rmtree("student_code")
-    return results
+    
+    # Select best feedback and add a little bit on
+    final_feedback = min(list_of_results, key=(lambda f: f.overall_score))
+    final_feedback.overall_feedback += "\n\n"
+    final_feedback.overall_feedback += "###################\n"
+    final_feedback.overall_feedback += "## Full results: ##\n"
+    for i, result in enumerate(list_of_results):
+      final_feedback.overall_feedback += f"test {i}: {result.overall_score} points\n"
+    final_feedback.overall_feedback += "###################\n"
+    
+    return final_feedback
 
 
 class Grader_stepbystep(Grader_docker):
