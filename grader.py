@@ -202,13 +202,19 @@ class Grader_CST334(Grader_docker):
     return False
   
   @staticmethod
-  def build_feedback(results_dict) -> str:
+  def build_feedback(results_dict, score=None) -> str:
     feedback_strs = [
       "##############",
       "## FEEDBACK ##",
       "##############",
       "",
     ]
+    
+    if score is not None:
+      feedback_strs.extend([
+        f"Score reported: {score} points",
+        ""
+      ])
     
     if "overall_feedback" in results_dict:
       feedback_strs.extend([
@@ -297,7 +303,7 @@ class Grader_CST334(Grader_docker):
     
     return misc.Feedback(
       overall_score=results_dict["score"],
-      overall_feedback=self.build_feedback(results_dict)
+      overall_feedback=self.build_feedback(results_dict, results_dict["score"])
     )
   
   def grade_in_docker(self, source_dir, programming_assignment, lint_bonus) -> misc.Feedback:
