@@ -121,8 +121,6 @@ class Grader_docker(Grader, ABC):
       **extra_args
     )
     
-    log.debug(f"stdout: {stdout}")
-    
     return rc, stdout, stderr
   
   def read_file(self, path_to_file) -> str|None:
@@ -191,13 +189,16 @@ class Grader_CST334(Grader_docker):
     self.assignment_path = assignment_path
     self.image = Grader_CST334.build_docker_image(base_image="samogden/cst334", github_repo=github_repo)
   
-  def check_for_trickery(self, input_file) -> bool:
-    try:
-      with open(input_file) as f:
-        if "exit(0)" in f.read():
-          return True
-    except IsADirectoryError:
-      pass
+  def check_for_trickery(self, files_submitted) -> bool:
+    for input_file in files_submitted:
+      try:
+        with open(input_file) as f:
+          if "exit(0)" in f.read():
+            return True
+      except IsADirectoryError:
+        pass
+    if not any(map(lambda f: f.endswith(".c") and "student_code" in f, files_submitted)):
+      return True
     return False
   
   @staticmethod
@@ -335,7 +336,7 @@ class Grader_CST334(Grader_docker):
         log.warning("Single file submitted")
     
     # Check for trickery, per Elijah's trials (so far)
-    if any([self.check_for_trickery(f) for f in files_copied]):
+    if self.check_for_trickery(files_copied):
       return misc.Feedback(
         overall_score=0.0,
         overall_feedback="It was detected that you might have been trying to game the scoring via exiting early from a unit test.  Please contact your professor if you think this was in error."
@@ -347,13 +348,13 @@ class Grader_CST334(Grader_docker):
     list_of_results : List[misc.Feedback] = []
     
     for i in range(num_repeats):
-      list_of_results.append(
-        self.grade_in_docker(
-          os.path.abspath("./student_code"),
-          self.assignment_path,
-          1
-        )
+      result = self.grade_in_docker(
+        os.path.abspath("./student_code"),
+        self.assignment_path,
+        1
       )
+      log.debug(result)
+      list_of_results.append(result)
     shutil.rmtree("student_code")
     
     # Select best feedback and add a little bit on
