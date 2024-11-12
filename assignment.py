@@ -316,6 +316,15 @@ class CanvasAssignment(Assignment):
     log.debug(f"Adding feedback for {user_id}")
     
     try:
+      submission = self.canvas_assignment.get_submission(user_id)
+      if submission.score > score:
+        log.warning(f"Current score ({submission.score}) higher than new score ({score}).  Not pushing new results.")
+        return
+    except requests.exceptions.ConnectionError as e:
+      log.warning(f"No previous submission found for {user_id}")
+    
+    
+    try:
       self.canvas_assignment.submissions_bulk_update(
         grade_data={
           'submission[posted_grade]' : score
@@ -384,6 +393,7 @@ class CanvasAssignment(Assignment):
       # Grade submission
       feedback: misc.Feedback = grader.grade_assignment(input_files=files, student_id=current_user_id, *args, **kwargs)
       log.debug(f"feedback: {feedback}")
+      log.debug(f"feedback.overall_feedback: {feedback.overall_feedback}")
       if push_feedback:
         self.push_feedback(current_user_id, feedback.overall_score, feedback.overall_feedback, feedback.attachments, clobber_feedback=clobber_feedback)
 
