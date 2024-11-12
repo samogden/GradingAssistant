@@ -318,8 +318,8 @@ class CanvasAssignment(Assignment):
     try:
       submission = self.canvas_assignment.get_submission(user_id)
       if submission.score > score:
-        log.warning(f"Current score ({submission.score}) higher than new score ({score}).  Not pushing new results.")
-        return
+        log.warning(f"Current score ({submission.score}) higher than new score ({score}).  Going to use previous score.")
+        score = submission.score
     except requests.exceptions.ConnectionError as e:
       log.warning(f"No previous submission found for {user_id}")
     
@@ -378,7 +378,7 @@ class CanvasAssignment(Assignment):
       upload_buffer_as_file(attachment_buffer.read(), attachment_buffer.name)
   
   
-  def grade(self, grader: grader_module.Grader_old, push_feedback=False, clobber_feedback=False, *args, **kwargs):
+  def grade(self, grader: grader_module.Grader, push_feedback=False, clobber_feedback=False, *args, **kwargs):
     # (student_submission.user_id, attempt_number, student_name), [local_paths]
     for (current_user_id, attempt_number, student_name), files in self.submission_files.items():
       log.debug(f"grading ({current_user_id}) : {files}")
